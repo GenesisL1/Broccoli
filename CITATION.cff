@@ -1,15 +1,17 @@
 cff-version: 1.2.0
 message: "If you use Broccoli in your work, please cite it as below."
-title: "Broccoli: topic maps for search results, in the browser"
+title: "Broccoli: GenesisL1's open-source search results clustering engine"
 type: software
 authors:
   - name: "Decentralized Science Labs LLC"
-version: "1.4.1"
+version: "1.5.0"
+date-released: "2026-10-19"
 license: MIT
 repository-code: "https://github.com/GenesisL1/Broccoli"
-url: "https://genesisl1.com/broccoli/"
+url: "https://genesisl1.com/broccoli.html"
 abstract: >-
-  Broccoli groups search results into labelled topics in the browser with
+  Broccoli is a GenesisL1 in-house open-source search results clustering
+  engine. It groups search results into labelled topics in the browser with
   Lingo, Suffix Tree Clustering or bisecting k-means, and draws them as
   zoomable maps (an organic Voronoi treemap, bubbles, a radial map and a
   florets map). Search sources bring records in from any search API; PubMed,
@@ -27,3 +29,4 @@ keywords:
   - literature search
   - Voronoi treemap
   - topic maps
+  - GenesisL1

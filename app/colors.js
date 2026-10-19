@@ -1,5 +1,5 @@
 /*
- * Broccoli — PubMed search with topic clusters.
+ * Broccoli — GenesisL1's search page: topic maps for search results.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
  * Colours of the topic maps: eight matte hues in a fixed order, made for a

@@ -1,24 +1,35 @@
 # 🥦 Broccoli
 
-**Topic maps for search results.** Broccoli takes the records a search
-returns, whatever searched for them, groups them into labelled topics in the
-browser with Lingo, Suffix Tree Clustering (STC) or bisecting k-means, and
-draws the topics as zoomable maps. Click a topic and Broccoli zooms in and
-clusters that topic's records again, so you can go down level by level, up
-to six levels deep.
+**Broccoli is a GenesisL1 in-house open-source search results clustering
+engine.** It takes the records a search returns, whatever searched for them,
+groups them into labelled topics in the browser with Lingo, Suffix Tree
+Clustering (STC) or bisecting k-means, and draws the topics as zoomable maps.
+Click a topic and Broccoli zooms in and clusters that topic's records again,
+so you can go down level by level, up to six levels deep.
 
 It comes with eleven search sources built in, ten for science and one
 general (PubMed, Europe PMC, ClinicalTrials.gov, preprints, arXiv, OpenAlex,
 Crossref, DOAJ, DataCite, INSPIRE-HEP and Wikipedia), and a search page with a
-tab for each. Any other
-search API plugs in with a few lines of code, or none: give it an address
-template and the names of the fields.
+tab for each. None of them needs an API key or an account. Any other search
+API plugs in with a few lines of code, or none: give it an address template
+and the names of the fields.
 
 There is no server, no build step and nothing to install. Open `index.html`,
 or put the folder on any static host; visitors' browsers call the search
 APIs directly. The library is one file with no dependencies.
 
-MIT License, © 2026 Decentralized Science Labs LLC.
+Broccoli is made by Decentralized Science Labs as a native part of the
+[GenesisL1](https://genesisl1.com) ecosystem, the public Layer 1 for
+verifiable data, models, applications and open infrastructure. It runs at
+[genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html), and
+[GL1X](https://gl1x.com), the GenesisL1 explorer, uses it to map the
+literature of the molecular structures on the chain. MIT License, © 2026
+Decentralized Science Labs LLC.
+
+**[Try Broccoli](https://genesisl1.com/broccoli.html)** ·
+[Documentation](docs/README.md) · [Sources](docs/SOURCES.md) ·
+[Changelog](CHANGELOG.md) ·
+[GenesisL1 ecosystem](https://genesisl1.com/ecosystem.html)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/broccoli-treemap-dark.webp">
@@ -35,6 +46,23 @@ again.
 | ![Treemap](docs/images/broccoli-treemap-small.webp) | ![Bubbles](docs/images/broccoli-bubbles-small.webp) | ![Radial](docs/images/broccoli-radial-small.webp) | ![Florets](docs/images/broccoli-florets-small.webp) |
 | cells of a weighted power diagram, relaxed into organic shapes | circles packed to fill the map | a sunburst of up to three rings | a head of broccoli seen from above, one bud per record |
 
+## Documentation
+
+This README introduces Broccoli and is the reference for its API. The
+[docs](docs/README.md) go further:
+
+| Document | What it covers |
+|---|---|
+| [The search page](docs/SEARCH-PAGE.md) | using the page: sources and query syntax, records and filters, the maps, zooming, records, exports, links, keyboard, troubleshooting |
+| [Search sources](docs/SOURCES.md) | each built-in source in detail (what it searches, syntax, sorts, filters, paging, limits, records) and how to write your own |
+| [How it works](docs/GUIDE.md) | how Broccoli reads text, finds and names topics, and lays out and colours its maps |
+| [Parameters](docs/PARAMETERS.md) | every algorithm parameter, with defaults and ranges |
+| [Embedding](docs/EMBEDDING.md) | the search page in a frame on your site, links that open a search, the library and the maps on your own pages |
+| [Self-hosting](docs/SELF-HOSTING.md) | publishing the page: static hosts, nginx, caching, Content Security Policy, the E-utilities proxy, versions |
+| [Broccoli and GenesisL1](docs/GENESISL1.md) | Broccoli's place in the GenesisL1 ecosystem: genesisl1.com, GL1X and its PubMed search, AI agents |
+| [Questions](docs/FAQ.md) | short answers to what people ask first |
+| [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) | working on Broccoli; reporting a vulnerability |
+
 ## Contents
 
 ```
@@ -44,13 +72,14 @@ dist/broccoli.js         the library as one classic script (window.Broccoli, or 
 dist/broccoli.mjs        the same library as an ES module
 src/                     the library as ES modules, which dist/ is built from
 src/sources/             the search sources and the interface they share
-examples/                small pages: your own documents, any source, the PubMed API, ES modules
-server/eutils-proxy.php  optional proxy that keeps an NCBI API key on your server
+examples/                small pages: your own documents, any source, the PubMed API, ES modules, the maps
+server/eutils-proxy.php  optional proxy that gives every visitor NCBI's higher rate limit
 tests/                   browser test suite
 tools/                   build.py, serve.py, run_tests.py (Python 3)
-docs/GUIDE.md            how Broccoli reads text, finds topics and draws its maps
-docs/PARAMETERS.md       every algorithm parameter, with defaults and ranges
+docs/                    the documentation: see docs/README.md
 CHANGELOG.md             what changed in each version
+CONTRIBUTING.md          how to work on Broccoli
+SECURITY.md              how to report a vulnerability
 NOTICE.md                credits: the papers, JAMA, Snowball, the fonts, the data sources
 CITATION.cff             how to cite Broccoli
 ```
@@ -62,12 +91,17 @@ CITATION.cff             how to cite Broccoli
    `graph neural networks` on arXiv or `psilocybin depression` on
    ClinicalTrials.gov.
 
+Or use the copy that runs at
+[genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html).
+
 To serve the folder locally, run `python3 tools/serve.py` and open
 http://localhost:8000/. `php -S localhost:8000` and other static servers work
-too. To publish the page, copy `index.html`, `app/` and `dist/` to any static
-host, such as GitHub Pages, Netlify, S3 or IPFS. With GitHub Pages turned on
+too. To publish the page, copy `index.html`, `app/`, `dist/` and `LICENSE` to
+any static host, such as GitHub Pages, Netlify, S3 or IPFS. With GitHub Pages turned on
 for this repository (Settings → Pages → deploy from the `main` branch, root
 folder), the page is served at `https://<owner>.github.io/Broccoli/`.
+[docs/SELF-HOSTING.md](docs/SELF-HOSTING.md) has the details, with an nginx
+configuration and a Content Security Policy.
 
 Opened from disk, everything works. Chrome blocks web fonts on `file://`
 pages, so the page uses system fonts there.
@@ -75,17 +109,19 @@ pages, so the page uses system fonts there.
 ## Sources
 
 Every built-in source answers requests from web pages (CORS), so the search
-page needs no server. Each one turns its API's records into the same record
-shape, described under [Search sources](#search-sources) below.
+page needs no server, and none needs an API key or an account. Each one
+turns its API's records into the same record shape, described under
+[Search sources](#search-sources) below; [docs/SOURCES.md](docs/SOURCES.md)
+describes each source in full.
 
 | Tab | Source | What it searches | Notes |
 |---|---|---|---|
-| PubMed | [PubMed](https://pubmed.ncbi.nlm.nih.gov/) through NCBI E-utilities | MEDLINE, PubMed Central and NCBI Bookshelf | PubMed syntax and filters, MeSH, spelling suggestions; optional NCBI key or proxy |
+| PubMed | [PubMed](https://pubmed.ncbi.nlm.nih.gov/) through NCBI E-utilities | MEDLINE, PubMed Central and NCBI Bookshelf | PubMed syntax and filters, MeSH, spelling suggestions; up to 10,000 records in code; an optional proxy of your own |
 | Europe PMC | [Europe PMC](https://europepmc.org/) | PubMed, PubMed Central, Agricola, patents, theses, preprints | its own fielded syntax; abstracts, MeSH, citation counts |
 | Trials | [ClinicalTrials.gov](https://clinicaltrials.gov/) API v2 | registered clinical studies | summaries as abstracts; conditions, keywords and interventions as subject terms; phase and status |
 | Preprints | Europe PMC's preprint index | bioRxiv, medRxiv, Research Square, SSRN, Preprints.org and more | the preprint server is the venue |
-| arXiv | arXiv papers in the [OpenAlex](https://openalex.org/) index | physics, mathematics, computer science, quantitative biology and finance, statistics, electrical engineering, economics | arXiv's own API refuses web pages, so this tab reads OpenAlex; `arxiv-api` is arXiv's API for servers and proxies |
-| OpenAlex | [OpenAlex](https://openalex.org/) | scholarly works in every field | abstracts from inverted indexes; an optional free key raises the small daily allowance for searches without one |
+| arXiv | arXiv papers in the [OpenAlex](https://openalex.org/) index | physics, mathematics, computer science, quantitative biology and finance, statistics, electrical engineering, economics | arXiv's own API refuses web pages, so this tab reads OpenAlex; up to 1,000 papers; `arxiv-api` is arXiv's API for servers and proxies |
+| OpenAlex | [OpenAlex](https://openalex.org/) | scholarly works in every field | abstracts from inverted indexes; up to 1,000 works, in numbered pages of 100, which need no key |
 | Crossref | [Crossref](https://www.crossref.org/) REST API | works with Crossref DOIs, from every publisher | JATS abstracts; ranks every work that matches any word, best first; an optional contact e-mail |
 | DOAJ | [DOAJ](https://doaj.org/) | articles in vetted open access journals | the first 1,000 results of a search |
 | DataCite | [DataCite](https://datacite.org/) REST API | datasets, software and other research outputs (Zenodo, Dryad, Figshare, data centres) | choose datasets, software or every kind of output |
@@ -165,22 +201,24 @@ call; see [Plug in your own search](#plug-in-your-own-search).
   - text options: subject terms, a filter for scientific boilerplate, your
     own stop words and stop labels (with `*` wildcards), label style
   - every algorithm parameter
-  - keys and access: an NCBI API key, contact e-mail and proxy address, an
-    OpenAlex API key, a contact e-mail for Crossref
+  - access, all optional: a contact e-mail and a proxy address for PubMed, a
+    contact e-mail for Crossref. No source asks for a key or an account.
   - theme: light, dark or system
 
-  Settings are kept in this browser only. A key is sent only to the service
-  it belongs to.
+  Settings are kept in this browser only, and each is sent only to the
+  service it belongs to.
 - **Embedding**: a page that shows the search page in a frame can set its
   theme without touching the reader's settings, with `?theme=light`, `dark`
   or `system` in the frame's address, or by sending it a message:
   `frame.contentWindow.postMessage({ type: 'broccoli:theme', theme: 'dark' }, '*')`.
   A theme the reader picks in the settings wins until the page sends another.
+  See [docs/EMBEDDING.md](docs/EMBEDDING.md).
 - **Sharing**: the address bar holds the source, the query, its options and
   filters, the map style and the topic you zoomed into
   (`#s=…&q=…&a=…&v=…&p=…`), so a view can be bookmarked or sent to someone,
   and finds the same records anywhere. `#s=arxiv` alone opens a source,
-  ready for a search.
+  ready for a search. [docs/SEARCH-PAGE.md](docs/SEARCH-PAGE.md#links-that-open-a-search)
+  lists every parameter.
 - **Keyboard**: `/` jumps to the search box; the arrow keys move along the
   source tabs. On the map, the arrow keys move between topics, Enter zooms
   in and Escape zooms out; a screen reader hears each topic's name and size.
@@ -207,9 +245,26 @@ records and it finds their topics: support tickets, survey answers,
 interview notes, patents, news, product reviews, internal documents, the
 results of any search engine you can call.
 
-[GL1X](https://gl1x.com), the explorer of the GenesisL1 blockchain, uses
-Broccoli for its [PubMed search](https://gl1x.com/bio/pubmed), where every
-molecular structure links to its literature.
+## Part of GenesisL1
+
+Broccoli is GenesisL1's own search results clustering engine, developed in
+house by Decentralized Science Labs, the publisher of genesisl1.com, for the
+GenesisL1 ecosystem.
+
+- **[genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html)**
+  presents Broccoli and runs the search page from this repository, with a
+  tab for every source.
+- **[GL1X](https://gl1x.com)**, the GenesisL1 explorer, uses Broccoli for its
+  [PubMed search](https://gl1x.com/bio/pubmed): every molecular structure on
+  the chain links to its literature, by its PDB ID and by the important words
+  of its title, and the papers open as a map of topics. AI agents connected
+  to GL1X's MCP server reach the same records with its `pubmed_search` tool.
+- **Reproducible by design**, like the rest of GenesisL1: every random step
+  draws from a seeded generator, so the same records with the same settings
+  always give the same topics and the same map, and every label is made of
+  words from the records.
+
+[docs/GENESISL1.md](docs/GENESISL1.md) tells the whole story.
 
 ## Using the library
 
@@ -231,7 +286,7 @@ molecular structure links to its literature.
 From a CDN, straight from this repository's tags:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.4.1/dist/broccoli.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.0/dist/broccoli.js"></script>
 ```
 
 jsDelivr also serves a minified copy if you ask for `broccoli.min.js`.
@@ -254,8 +309,11 @@ const topics = Broccoli.cluster(docs, {
 
 `Broccoli.listSources()` lists the sources with everything a search form
 needs: names, descriptions, sorts, filters, settings and example queries.
-Settings such as API keys go in `settings`:
-`searchSource('openalex', q, { settings: { apiKey } })`.
+A source's settings go in `settings`, for example a contact e-mail for
+Crossref: `searchSource('crossref', q, { settings: { email: 'you@example.org' } })`.
+No built-in source needs a key. For heavy use from code, PubMed and OpenAlex
+also take a free key of your own as `settings.apiKey`; the search page never
+asks for one.
 
 ### Plug in your own search
 
@@ -304,7 +362,9 @@ Broccoli.registerSource(Broccoli.jsonSource({
 
 For APIs that need several steps, write `search(req)` in place of
 `fetchPage` and return all the records at once (the PubMed source does this:
-ESearch, then EFetch).
+ESearch, then EFetch). [docs/SOURCES.md](docs/SOURCES.md#writing-a-source)
+walks through writing a source: paging by offset, page number or cursor,
+errors, settings and tests.
 
 ### In a Web Worker
 
@@ -394,7 +454,7 @@ as is:
   stats: { … }, timings: { preprocessing: { … }, factorization: 41, total: 380 },
   parameters: { … },               // the parameters that were used
   warnings: [ … ],                 // unknown parameters, clamped values
-  version: '1.4.1',
+  version: '1.5.0',
 }
 ```
 
@@ -608,17 +668,21 @@ A language you register exists only on the page that registered it, so
 `createClusterer()` runs jobs in that language on the page's own thread
 instead of in its worker.
 
-## Keys, limits and good manners
+## Limits and good manners
 
-Each source keeps to its API's published limits on its own; searches from
-one page share them.
+No source needs an API key or an account. Each source keeps to its API's
+published limits on its own, and searches from one page share them.
 
-- **PubMed**: NCBI asks for no more than 3 requests a second, or 10 with a
-  free [API key](https://www.ncbi.nlm.nih.gov/account/settings/), and for a
-  `tool` name and a contact `email`. See NCBI's
-  [usage guidelines](https://www.ncbi.nlm.nih.gov/books/NBK25497/).
-- **OpenAlex** gives searches without a key a small daily allowance; a free
-  key from openalex.org raises it.
+- **PubMed**: NCBI asks for no more than 3 requests a second without a key,
+  which Broccoli keeps to, and for a `tool` name and a contact `email`. See
+  NCBI's [usage guidelines](https://www.ncbi.nlm.nih.gov/books/NBK25497/).
+  A site can give every visitor NCBI's higher limit with the proxy below.
+- **OpenAlex** (and the arXiv tab, which reads OpenAlex) serves numbered
+  pages to everyone, which is how Broccoli asks for them, 100 works a page.
+  It gives every address a daily allowance of searches without a key, about
+  a hundred requests: some fifty searches of 200 works, or ten of 1,000. When
+  it runs out the page says so, and it renews the next day; the other
+  sources keep working.
 - **Crossref** serves requests that give a contact e-mail (`mailto`) from a
   more reliable pool, and asks for one request a second from the public
   pool, which Broccoli keeps to.
@@ -628,10 +692,11 @@ one page share them.
   answer web pages; the `arxiv-api` source keeps to the first and needs a
   proxy (`settings.baseUrl`) for the second.
 
-To give every visitor the higher NCBI limit without asking for their key,
-deploy `server/eutils-proxy.php` (PHP 7.4 or newer) with your key in it, then
-set the page's "E-utilities address" setting, or `baseUrl` in code, to
-`https://your.server/eutils-proxy.php?u=`. The proxy:
+To give every visitor NCBI's higher limit, deploy `server/eutils-proxy.php`
+(PHP 7.4 or newer) with your site's NCBI key in it, then set the page's
+"E-utilities address" setting, or `baseUrl` in code, to
+`https://your.server/eutils-proxy.php?u=`. Visitors never see or need a key.
+The proxy:
 
 - forwards only the E-utilities and databases on its allow list.
 - replaces any key the browser sends with yours, and removes your key from
@@ -641,7 +706,9 @@ set the page's "E-utilities address" setting, or `baseUrl` in code, to
 - by default serves only pages from its own site. Set
   `BROCCOLI_ALLOWED_ORIGINS` if the search page lives elsewhere.
 
-Setup notes are at the top of the file.
+Setup notes are at the top of the file, and
+[docs/SELF-HOSTING.md](docs/SELF-HOSTING.md#the-e-utilities-proxy) walks
+through it.
 
 ## Development
 
@@ -680,6 +747,9 @@ k-means), `src/algorithms`, `src/engine` (parameters, presets, worker),
 built-in sources) and `src/pubmed` (E-utilities client, XML parser, PubMed
 records, exports).
 
+[CONTRIBUTING.md](CONTRIBUTING.md) describes how to propose a change, add a
+source or a language, and what the tests expect.
+
 ## Browser support
 
 Current Chrome, Edge, Firefox and Safari: anything from 2020 on with ES2019,
@@ -688,14 +758,24 @@ run in Chromium, at phone, tablet and desktop sizes from 320 pixels wide.
 
 ## Privacy
 
-Clustering happens on your own device. The page sends nothing anywhere except
-your queries, which go to the source you search (or to your proxy, if you set
-one). There is no analytics and there are no cookies. Settings, including
-API keys if you enter them, are kept in this browser's local storage, and a
-key goes only to the service it belongs to.
+Clustering happens on your own device. The search page in this repository
+sends nothing anywhere except your queries, which go to the source you
+search (or to your proxy, if you set one). It has no analytics and sets no
+cookies. Settings are kept in this browser's local storage, and each goes
+only to the service it belongs to.
+
+A site that hosts the page may add services of its own. On genesisl1.com,
+for example, Google Analytics runs on every page once a visitor accepts the
+site's cookie notice, as its [privacy policy](https://genesisl1.com/privacy.html)
+describes; the searches themselves still go from the browser straight to the
+source.
 
 ## License
 
 MIT, © 2026 Decentralized Science Labs LLC. See [LICENSE](LICENSE), and
 [NOTICE.md](NOTICE.md) for credits to the papers the algorithms come from,
 JAMA, Snowball, the fonts and the data sources.
+
+Broccoli is part of the GenesisL1 ecosystem. "GenesisL1", "GL1X" and
+"Broccoli" name projects of that ecosystem; the license covers the code and
+grants no rights to names or marks.

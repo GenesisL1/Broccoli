@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Broccoli: topic maps for search results</title>
-<meta name="description" content="Search PubMed, Europe PMC, preprints, arXiv, OpenAlex, Crossref, DOAJ, ClinicalTrials.gov, DataCite, INSPIRE-HEP or Wikipedia and read the results as a zoomable map of labelled topics and subtopics. Lingo, STC and bisecting k-means clustering run entirely in your browser.">
+<title>Broccoli by GenesisL1: topic maps for search results</title>
+<meta name="description" content="Broccoli, GenesisL1's open-source search results clustering engine: search PubMed, Europe PMC, preprints, arXiv, OpenAlex, Crossref, DOAJ, ClinicalTrials.gov, DataCite, INSPIRE-HEP or Wikipedia and read the results as a zoomable map of labelled topics and subtopics. Lingo, STC and bisecting k-means clustering run entirely in your browser, with no account and no API key.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f5f6f3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b1015" media="(prefers-color-scheme: dark)">
@@ -21,7 +21,7 @@
       <span class="brand-mark" aria-hidden="true">🥦</span>
       <span>
         <span class="brand-name">Broccoli</span>
-        <span class="brand-tag">Topic maps for search results</span>
+        <span class="brand-tag">Topic maps for search results, by GenesisL1</span>
       </span>
     </a>
 
@@ -80,7 +80,8 @@
         <p id="source-about"></p>
         <p class="fine" id="source-syntax"></p>
       </div>
-      <p class="fine">Clustering runs on this page with Lingo, STC or bisecting k-means. Your browser asks the source's API directly: there is no server in between, no account, and nothing you search is stored.</p>
+      <p class="fine">Broccoli is a GenesisL1 in-house open-source search results clustering engine. Clustering runs on this page with Lingo, STC or bisecting k-means, and your browser asks each source's API directly: there is no server in between, no account and no API key, and Broccoli stores nothing you search.</p>
+      <p class="fine credits">Part of the <a href="https://genesisl1.com/ecosystem.html" target="_top">GenesisL1 ecosystem</a> · <a href="https://genesisl1.com/broccoli.html" target="_top">About Broccoli</a> · <a href="https://github.com/GenesisL1/Broccoli" target="_blank" rel="noopener">Source code</a></p>
     </div>
     <figure class="landing-map">
       <svg class="florets" id="landing-florets" aria-label="Example searches"></svg>
@@ -209,8 +210,8 @@
     </fieldset>
 
     <fieldset>
-      <legend>Keys and access</legend>
-      <p class="hint">All optional. Each stays in this browser and is sent only to the service it belongs to.</p>
+      <legend>Access</legend>
+      <p class="hint">All optional: no source needs a key or an account. Each setting stays in this browser and is sent only to the service it belongs to.</p>
       <div id="access"></div>
     </fieldset>
 

@@ -1,5 +1,5 @@
 /*
- * Broccoli — browser-native search results clustering.
+ * Broccoli — GenesisL1's open-source search results clustering engine.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
  * Suffix arrays over integer sequences (SA-IS, Nong, Zhang & Chan 2009),

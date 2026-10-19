@@ -1,5 +1,5 @@
 /*
- * Broccoli — browser-native search results clustering.
+ * Broccoli — GenesisL1's open-source search results clustering engine.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
  * OpenAlex: an open index of scholarly works in every field, with abstracts
@@ -8,8 +8,11 @@
  * does not accept requests from web pages.
  * https://docs.openalex.org/
  *
- * OpenAlex gives searches without an API key a small daily allowance; a
- * free key (openalex.org) raises it. Set it as settings.apiKey.
+ * No API key is needed. Results are fetched by page number (up to 10,000 a
+ * search): OpenAlex answers numbered pages for everyone, but the second page
+ * of a cursor only for callers with a key. OpenAlex gives each address a
+ * daily allowance of searches; a developer with heavy use can pass a free key
+ * of their own as settings.apiKey (the search page does not ask for one).
  */
 
 import { buildUrl } from './http.js';
@@ -157,12 +160,13 @@ export function openAlexFilter(req, extra) {
 
 function openAlexPage(options) {
   return async function fetchPage(req, page) {
+    // Numbered pages, not a cursor: they need no API key.
     const url = buildUrl(OPENALEX_WORKS, {
       search: req.query,
       filter: openAlexFilter(req, options.filter),
       sort: SORTS[req.sort],
       'per-page': page.size,
-      cursor: page.cursor || '*',
+      page: page.page,
       select: options.select.join(','),
       api_key: req.settings.apiKey || undefined,
     });
@@ -172,17 +176,9 @@ function openAlexPage(options) {
     return {
       total: meta.count != null ? meta.count : null,
       records: results.map((w) => openAlexRecord(w, options)),
-      cursor: results.length && meta.next_cursor ? meta.next_cursor : null,
     };
   };
 }
-
-const KEY_SETTING = {
-  id: 'apiKey',
-  label: 'OpenAlex API key',
-  type: 'secret',
-  help: 'Optional and free from openalex.org. Without one, OpenAlex allows each address a small number of searches a day.',
-};
 
 export const openAlexSource = {
   id: 'openalex',
@@ -190,7 +186,7 @@ export const openAlexSource = {
   description: 'An open index of scholarly works in every field, from journals, repositories, preprint servers and conferences.',
   homepage: 'https://openalex.org/',
   docs: 'https://docs.openalex.org/',
-  terms: 'https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication',
+  terms: 'https://help.openalex.org/api/authentication/',
   group: 'All fields',
   service: 'openalex',
   kinds: ['article', 'review', 'preprint', 'book', 'dataset', 'thesis'],
@@ -208,7 +204,6 @@ export const openAlexSource = {
     { id: 'open', label: 'Open access only' },
     { id: 'articles', label: 'Articles only', help: 'Leaves out preprints, books, datasets and the rest.' },
   ],
-  settings: [KEY_SETTING],
   keywordsLabel: 'Keywords',
   years: true,
   maxLimit: 1000,
@@ -224,7 +219,7 @@ export const arxivSource = {
   description: 'Preprints in physics, mathematics, computer science, quantitative biology and finance, statistics, electrical engineering and economics, read from the OpenAlex index of arXiv.',
   homepage: 'https://arxiv.org/',
   docs: 'https://docs.openalex.org/',
-  terms: 'https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication',
+  terms: 'https://help.openalex.org/api/authentication/',
   group: 'Preprints',
   service: 'openalex',
   settingsFrom: 'openalex',
@@ -241,7 +236,6 @@ export const arxivSource = {
   filters: [
     { id: 'abstracts', label: 'Only papers with an abstract', default: true },
   ],
-  settings: [KEY_SETTING],
   keywordsLabel: 'Keywords',
   years: true,
   maxLimit: 1000,

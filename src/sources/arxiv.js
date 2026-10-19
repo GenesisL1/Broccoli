@@ -1,5 +1,5 @@
 /*
- * Broccoli — browser-native search results clustering.
+ * Broccoli — GenesisL1's open-source search results clustering engine.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
  * arXiv's own API (Atom feeds). arXiv does not send the CORS headers a web

@@ -1,5 +1,5 @@
 /*
- * Broccoli — PubMed search with topic clusters.
+ * Broccoli — GenesisL1's search page: topic maps for search results.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
  * Zoomable topic maps drawn on a canvas: an organic treemap (a Voronoi

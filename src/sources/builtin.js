@@ -1,5 +1,5 @@
 /*
- * Broccoli — browser-native search results clustering.
+ * Broccoli — GenesisL1's open-source search results clustering engine.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
  * The built-in sources, registered in the order a search page lists them.

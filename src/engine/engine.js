@@ -1,5 +1,5 @@
 /*
- * Broccoli — browser-native search results clustering.
+ * Broccoli — GenesisL1's open-source search results clustering engine.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
  * The public clustering entry point: normalizes documents, resolves
@@ -13,7 +13,7 @@ import { bisectingKMeans } from '../algorithms/bisecting-kmeans.js';
 import { getAlgorithm, resolveParameters, deepMerge } from './attributes.js';
 import { now } from '../preprocessing/context.js';
 
-export const VERSION = '1.4.1';
+export const VERSION = '1.5.0';
 
 const RUNNERS = { lingo, stc, bkm: bisectingKMeans };
 

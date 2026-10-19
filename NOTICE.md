@@ -1,8 +1,9 @@
 # Notices and credits
 
-Broccoli is © 2026 Decentralized Science Labs LLC and released under the MIT
-License (see `LICENSE`). It is an independent implementation, written from
-the published descriptions of the methods below. The notes credit the work it
+Broccoli, a GenesisL1 in-house open-source search results clustering engine,
+is © 2026 Decentralized Science Labs LLC and released under the MIT License
+(see `LICENSE`). It is an independent implementation, written from the
+published descriptions of the methods below. The notes credit the work it
 is based on and the material it ships with.
 
 ## Algorithms
@@ -132,3 +133,13 @@ The API responses in `tests/fixtures/` are hand-written examples in each
 API's format and describe fictional records. The screenshots in
 `docs/images/` show the topics Broccoli found in a PubMed search for
 `longevity[tiab] AND (aging[tiab] OR ageing[tiab])` with abstracts.
+The search results in `examples/basic.html` and `examples/map.html` are
+short texts written for the examples.
+
+## Names
+
+Broccoli is part of the GenesisL1 ecosystem. "GenesisL1", "GL1X" and
+"Broccoli" name projects of that ecosystem; the MIT License covers the code
+and grants no rights to names or marks. The names of the data sources above
+belong to their owners, and neither Broccoli nor GenesisL1 is affiliated
+with or endorsed by them.

@@ -373,18 +373,24 @@ test('Preprints source asks Europe PMC for preprints only', async () => {
   assertEqual(query(f.calls[0].url).query, '(protein language models) AND HAS_ABSTRACT:Y AND SRC:PPR');
 });
 
-test('OpenAlex source: filter, sort, key, abstracts from the inverted index', async () => {
+test('OpenAlex source: filter, sort, numbered pages (no key needed), abstracts from the inverted index', async () => {
   const f = fakeFetch(() => response(200, OPENALEX_WORKS));
-  const res = await D.searchSource('openalex', 'urban heat', Object.assign({ fetch: f, sort: 'date', from: 2020, filters: { open: true }, settings: { apiKey: 'KEY' } }, FAST));
+  const res = await D.searchSource('openalex', 'urban heat', Object.assign({ fetch: f, sort: 'date', from: 2020, filters: { open: true } }, FAST));
   const q = query(f.calls[0].url);
   assertEqual(q.search, 'urban heat');
   assertEqual(q.filter, 'has_abstract:true,is_oa:true,from_publication_date:2020-01-01');
   assertEqual(q.sort, 'publication_date:desc');
   assertEqual(q['per-page'], '100');
-  assertEqual(q.cursor, '*');
-  assertEqual(q.api_key, 'KEY');
+  assertEqual(q.page, '1');
+  assertEqual(q.cursor, undefined, 'no cursor: the second page of a cursor needs an API key');
+  assertEqual(q.api_key, undefined, 'no key unless code passes one');
   assert(q.select.split(',').indexOf('abstract_inverted_index') >= 0);
-  assertEqual(f.calls.length, 1, 'next_cursor null ends the search');
+  assertEqual(f.calls.length, 1, 'all results on the first page end the search');
+  const keyed = fakeFetch(() => response(200, OPENALEX_WORKS));
+  await D.searchSource('openalex', 'urban heat', Object.assign({ fetch: keyed, settings: { apiKey: 'KEY' } }, FAST));
+  assertEqual(query(keyed.calls[0].url).api_key, 'KEY', 'code can still pass a key');
+  assertEqual(D.getSource('openalex').settings.length, 0, 'the search page asks for no key');
+  assertEqual(D.getSource('pubmed').settings.some((s) => s.type === 'secret'), false, 'no source asks for a key');
   const [w, x] = res.records;
   assertEqual(w.id, 'W4400000001');
   assertEqual(w.title, 'Urban heat islands and night-time mortality');
@@ -419,6 +425,17 @@ test('arXiv source reads arXiv papers from OpenAlex, arXiv links first', async (
   assertEqual(x.links[0].label, 'arXiv');
   assertEqual(D.arxivIdOf({ locations: [{ landing_page_url: 'https://arxiv.org/abs/hep-th/9901001v3' }] }), 'hep-th/9901001');
   assertEqual(D.uninvertAbstract({ b: [1], a: [0], c: [3] }), 'a b c');
+});
+
+test('OpenAlex and arXiv ask for page 1, 2, 3… by number until the limit', async () => {
+  const many = (n, from) => ({ meta: { count: 250, page: null, per_page: 100, next_cursor: null },
+    results: Array.from({ length: n }, (_, i) => ({ id: 'https://openalex.org/W' + (from + i), display_name: 'Work ' + (from + i), abstract_inverted_index: { words: [0] } })) });
+  const f = fakeFetch((call) => { const p = +query(call.url).page; return response(200, many(p === 3 ? 50 : 100, (p - 1) * 100)); });
+  const res = await D.searchSource('arxiv', 'quantum error correction', Object.assign({ fetch: f, limit: 250 }, FAST));
+  assertDeepEqual(f.calls.map((c) => query(c.url).page), ['1', '2', '3']);
+  assert(f.calls.every((c) => query(c.url)['per-page'] === '100' && query(c.url).cursor === undefined));
+  assertEqual(res.records.length, 250);
+  assertEqual(res.total, 250);
 });
 
 test('Crossref source: filters, cursor, JATS abstracts, preprints from posted content', async () => {

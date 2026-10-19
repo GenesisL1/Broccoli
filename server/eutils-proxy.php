@@ -1,6 +1,6 @@
 <?php
 /*
- * Broccoli — optional NCBI E-utilities proxy.
+ * Broccoli (GenesisL1) — optional NCBI E-utilities proxy.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
  * You do not need this file: the search page and the library talk to NCBI

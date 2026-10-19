@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Broccoli — browser-native search results clustering.
+# Broccoli — GenesisL1's open-source search results clustering engine.
 # Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
 """
 Serves the project folder on http://localhost:8000/ with correct MIME

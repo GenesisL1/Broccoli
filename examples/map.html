@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Broccoli: a topic map on your own page</title>
+<style>
+  :root { --bg: #f5f7f2; --fg: #1e2b22; --muted: #5d6b61; --line: #d5ddd2; --panel: #ffffff; --accent: #56795a; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #141a16; --fg: #e3e9e2; --muted: #9aa79d; --line: #2c3730; --panel: #1b231e; --accent: #8fb592; color-scheme: dark; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 64rem; margin: 0 auto; padding: 1.5rem max(16px, env(safe-area-inset-left, 0px)) 3rem max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  p { color: var(--muted); margin: 0 0 1rem; max-width: 44rem; }
+  .controls { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin: .75rem 0 1rem; }
+  select, button { font: inherit; padding: .4rem .7rem; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+  button { cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  #where { color: var(--muted); font-size: .9375rem; }
+
+  /* What the maps need from the page: a positioned stage, the canvas, and the tooltip. */
+  .stage { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+  .views-canvas { display: block; outline: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .views-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); border-radius: 14px; }
+  .views-tip { position: absolute; z-index: 3; display: grid; gap: 3px; max-width: min(320px, 80%); padding: 8px 11px 9px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); font-size: 13px; line-height: 1.4; pointer-events: none; }
+  .views-tip[hidden] { display: none; }
+  .views-tip strong { font-size: 14px; }
+  .views-tip .meta, .views-tip .hint { color: var(--muted); }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>A topic map on your own page</h1>
+  <p>Thirty-six search results for one ambiguous word, clustered in this page and drawn with Broccoli's maps. Click a topic, or move to it with the arrow keys and press Enter, to zoom in: Broccoli clusters its records again, or shows them one by one when they are too few to split. Escape or Up goes back. Nothing is sent anywhere.</p>
+  <div class="controls">
+    <label>Map <select id="view">
+      <option value="treemap">Treemap</option>
+      <option value="bubbles">Bubbles</option>
+      <option value="radial">Radial</option>
+    </select></label>
+    <button id="up" type="button" disabled>Up</button>
+    <span id="where" aria-live="polite"></span>
+  </div>
+  <div class="stage" id="stage"></div>
+</main>
+
+<script src="../dist/broccoli.js"></script>
+<script src="../app/colors.js"></script>
+<script src="../app/views.js"></script>
+<script>
+  // Search results for "jaguar": the animal, the cars, the Mac OS X release,
+  // the guitar, the football team and the aircraft.
+  var QUERY = 'jaguar';
+  var DOCS = [
+    ['The jaguar is the largest wild cat in the Americas', 'Jaguars range from Mexico to northern Argentina, in rainforest, wetland and dry forest.'],
+    ['Camera traps count jaguars in the Amazon rainforest', 'Researchers identify each wild cat by the rosettes on its coat.'],
+    ['Jaguar populations recover where ranchers share land with the wild cat', 'Compensation for lost cattle reduces conflict with jaguars.'],
+    ['Why the jaguar has the strongest bite of any big cat', 'A jaguar can pierce the shell of a turtle and the skull of its prey.'],
+    ['Conservation corridors let the jaguar move between forest reserves', 'Wildlife corridors connect jaguar populations across farmland.'],
+    ['Jaguar cubs born at the zoo are the first in a decade', 'The wild cat breeding programme hopes to return jaguars to the wild.'],
+    ['Jaguar unveils an electric grand tourer with a 700 km range', 'The electric car is the first of a new Jaguar range built in Britain.'],
+    ['Jaguar Land Rover will build electric cars at its Castle Bromwich plant', 'The car maker is investing in battery production for electric models.'],
+    ['Review: the Jaguar F-Type coupe is a fast, loud sports car', 'The supercharged engine makes the sports car quick on the road and the track.'],
+    ['Jaguar car owners report faults in the infotainment system', 'A software update fixes the touch screen in several Jaguar car models.'],
+    ['Used Jaguar XJ prices fall as buyers move to electric cars', 'The luxury saloon car loses value faster than its rivals.'],
+    ['Jaguar Land Rover recalls cars over a faulty seat belt sensor', 'Owners of the affected cars will be contacted by their dealer.'],
+    ['Mac OS X 10.2 Jaguar brought Quartz Extreme and iChat to the Mac', 'Apple released Jaguar, the third major version of Mac OS X, in 2002.'],
+    ['Installing Mac OS X Jaguar on an older PowerPC Mac', 'Jaguar needs a G3 processor and 128 MB of memory to run on a Mac.'],
+    ['Mac OS X Jaguar was the first release sold under its big cat name', 'Apple used the Jaguar name on the box of Mac OS X 10.2.'],
+    ['Running classic Mac OS applications on Mac OS X Jaguar', 'The Classic environment lets old applications run on Mac OS X.'],
+    ['Mac OS X Jaguar adds Rendezvous networking and a faster Finder', 'Jaguar was faster than earlier releases of Mac OS X on the same Mac.'],
+    ['Apple ships Mac OS X Jaguar with a new Address Book and Mail', 'The Mac OS X release brought spam filtering to Mail.'],
+    ['Fender Jaguar guitar: short scale, offset body and a bright sound', 'The Fender Jaguar electric guitar was first made in 1962.'],
+    ['The Fender Jaguar guitar returns in a new vintage series', 'The reissued Jaguar guitar keeps the original pickups and switches.'],
+    ['How to set up the tremolo on a Fender Jaguar guitar', 'A floating tremolo needs the right strings and bridge on a Jaguar guitar.'],
+    ['Surf rock bands made the Fender Jaguar guitar famous', 'Surf and indie rock guitarists chose the Jaguar guitar for its sound.'],
+    ['Fender Jaguar or Jazzmaster: which offset guitar to buy', 'The two offset guitars share a body shape but not their pickups.'],
+    ['Replacing the pickups of a Fender Jaguar guitar', 'Hotter pickups change the bright sound of the Jaguar guitar.'],
+    ['Jacksonville Jaguars win at home in the NFL season opener', 'The football team scored twice in the fourth quarter.'],
+    ['Jacksonville Jaguars draft a quarterback in the first round', 'The NFL team hopes the young quarterback will lead its offense.'],
+    ['Jaguars fans fill the stadium in Jacksonville for the playoff game', 'The NFL playoff game sold out within an hour.'],
+    ['Jacksonville Jaguars sign a new head coach', 'The football team hired the coach after a losing NFL season.'],
+    ['Injuries leave the Jacksonville Jaguars short on defense', 'The NFL team placed two linebackers on injured reserve.'],
+    ['The Jacksonville Jaguars play an NFL game in London', 'The football team plays one home game a season at Wembley.'],
+    ['SEPECAT Jaguar: the Anglo-French ground attack aircraft', 'The Jaguar aircraft served with the Royal Air Force and the French Air Force.'],
+    ['India keeps its Jaguar strike aircraft flying with new engines', 'The Indian Air Force upgrades the avionics of its Jaguar fleet.'],
+    ['The last RAF Jaguar aircraft retire after 34 years of service', 'Jaguar squadrons flew ground attack and reconnaissance missions.'],
+    ['Restoring a SEPECAT Jaguar aircraft for an air museum', 'Volunteers rebuilt the cockpit of the retired strike aircraft.'],
+    ['Jaguar aircraft in the Gulf War: low-level reconnaissance', 'RAF Jaguars flew hundreds of missions over Kuwait.'],
+    ['French Air Force Jaguar aircraft in African operations', 'The Jaguar strike aircraft operated from rough airstrips.'],
+  ].map(function (d) { return { title: d[0], snippet: d[1] }; });
+
+  var D = window.Broccoli;
+  var clusterer = D.createClusterer();   // a Web Worker when it can, else this page
+  var $ = function (id) { return document.getElementById(id); };
+  var focus = null;
+
+  // A node of the topic tree, as the maps read it.
+  function node(parent, label, docs, index, other) {
+    return {
+      id: parent ? parent.id + '.' + index : 't',
+      parent: parent,
+      depth: parent ? parent.depth + 1 : 0,
+      index: index,
+      label: label,
+      other: !!other,          // the records no topic took
+      size: docs.length,
+      docs: docs,              // indices into DOCS
+      children: null,
+      status: 'idle',          // idle → pending → ready (has children) or leaf
+    };
+  }
+
+  // The topics of a cluster() result, as children of a node.
+  function adopt(parent, result) {
+    var kids = result.clusters.map(function (c, i) {
+      return node(parent, c.label, c.documents.map(function (j) { return parent.docs[j]; }), i, c.other);
+    }).filter(function (k) { return k.size < parent.size || !parent.parent; });
+    if (kids.filter(function (k) { return !k.other; }).length < 2) { parent.status = 'leaf'; parent.children = []; }
+    else { parent.status = 'ready'; parent.children = kids; }
+  }
+
+  // A topic's subtopics: its own records, clustered again. The labels above
+  // it join the query hint, so a subtopic is not just its parent's name again.
+  function expand(n) {
+    if (n.status !== 'idle') return Promise.resolve(n);
+    if (n.docs.length < 5 || n.depth >= 3) { n.status = 'leaf'; n.children = []; return Promise.resolve(n); }
+    n.status = 'pending';
+    var hint = [QUERY];
+    for (var p = n; p && p.parent; p = p.parent) if (!p.other) hint.push(p.label);
+    return clusterer.cluster(n.docs.map(function (i) { return DOCS[i]; }), { queryHint: hint.join(' '), parameters: { desiredClusterCount: 4 } })
+      .then(function (res) { adopt(n, res); return n; }, function () { n.status = 'leaf'; n.children = []; return n; });
+  }
+
+  var views = BroccoliViews.create($('stage'), {
+    unit: 'record',
+    height: function (width) { return Math.max(360, Math.min(620, Math.round(width * 0.6))); },
+    onFocus: function (n) { zoom(n); },
+    onUp: function () { if (focus && focus.parent) zoom(focus.parent); },
+    onRecord: function (doc) { $('where').textContent = DOCS[doc].title; },
+    recordInfo: function (doc) { return { title: DOCS[doc].title, meta: DOCS[doc].snippet }; },
+  });
+
+  function show() {
+    var path = [];
+    for (var n = focus; n; n = n.parent) path.unshift(n.parent ? n.label : 'All records');
+    $('where').textContent = path.join(' › ') + ' · ' + focus.size + ' records';
+    $('up').disabled = !focus.parent;
+  }
+
+  function zoom(n) {
+    focus = n;
+    views.setFocus(n, { animate: true });
+    show();
+    expand(n).then(function () { views.update(); });
+  }
+
+  $('view').addEventListener('change', function () { views.setView(this.value); });
+  $('up').addEventListener('click', function () { if (focus && focus.parent) zoom(focus.parent); });
+  window.addEventListener('resize', function () { views.refresh(); });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { views.refresh(); });
+
+  var root = node(null, 'All records', DOCS.map(function (d, i) { return i; }), 0);
+  clusterer.cluster(DOCS, { queryHint: QUERY, parameters: { desiredClusterCount: 10 } }).then(function (result) {
+    adopt(root, result);
+    focus = root;
+    views.setData(root, root, { animate: true });
+    show();
+  });
+</script>
+</body>
+</html>

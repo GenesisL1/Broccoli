@@ -1,10 +1,14 @@
 /*
- * Broccoli — browser-native search results clustering.
+ * Broccoli — GenesisL1's open-source search results clustering engine.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
  * PubMed through NCBI E-utilities (ESearch for the IDs, EFetch for the
  * records), with PubMed's own query syntax and filters.
  * https://www.ncbi.nlm.nih.gov/books/NBK25501/
+ *
+ * No API key is needed: NCBI allows three requests a second without one.
+ * Code may pass a free NCBI key as settings.apiKey for ten a second; the
+ * search page does not ask for one.
  */
 
 import { PubMedClient, EUTILS_BASE } from '../pubmed/eutils.js';
@@ -88,7 +92,6 @@ export const pubmedSource = {
     { id: 'trials', label: 'Clinical trials only' },
   ],
   settings: [
-    { id: 'apiKey', label: 'NCBI API key', type: 'secret', help: 'Free from your NCBI account settings. Raises the limit from 3 to 10 requests a second.' },
     { id: 'email', label: 'Contact e-mail', type: 'email', help: 'NCBI asks tools to identify a contact for heavy use.' },
     { id: 'baseUrl', label: 'E-utilities address', type: 'url', placeholder: EUTILS_BASE, help: 'Change only to use a proxy, such as server/eutils-proxy.php from the Broccoli repository.' },
   ],

@@ -1,15 +1,16 @@
 <!-- SPDX-License-Identifier: MIT · Copyright (c) 2026 Decentralized Science Labs LLC -->
 # Broccoli: how it reads, clusters and draws
 
-**Broccoli** is a JavaScript library by Decentralized Science Labs, released
-under the MIT License. It groups search results into labelled topics on the
+**Broccoli** is a GenesisL1 in-house open-source search results clustering
+engine: a JavaScript library by Decentralized Science Labs for the GenesisL1
+ecosystem, released under the MIT License. It groups search results into labelled topics on the
 reader's own device, with Lingo, Suffix Tree Clustering (STC) or bisecting
 k-means, and draws the topics as zoomable maps. Search sources bring the
 records in from any search API: PubMed, Europe PMC, ClinicalTrials.gov,
 preprints, arXiv, OpenAlex, Crossref, DOAJ, DataCite, INSPIRE-HEP and
 Wikipedia are built in. It also contains exports for reference managers and
-a search page with a tab for each source. This guide describes version
-1.4.1.
+a search page with a tab for each source. No source needs an API key or an
+account. This guide describes version 1.5.0.
 
 It explains how the sources fetch and shape records, how Broccoli reads
 text, how each algorithm finds and names topics, how the maps are laid out
@@ -112,7 +113,7 @@ fields). What goes where:
 | PubMed | article title; abstract with its labelled sections | MeSH headings (check tags left out) and author keywords | journal | ESearch, then EFetch in batches of 200 |
 | Europe PMC, Preprints | title; HTML abstract, `<h4>` headings as section labels | MeSH and keywords | journal, or the preprint server | cursor, 250 a page |
 | ClinicalTrials.gov | brief title; brief summary | conditions, keywords and interventions | lead sponsor | page token, 200 a page |
-| OpenAlex, arXiv | title; abstract rebuilt from its inverted index | OpenAlex keywords and MeSH | source (journal, repository, arXiv) | cursor, 100 a page |
+| OpenAlex, arXiv | title; abstract rebuilt from its inverted index | OpenAlex keywords and MeSH | source (journal, repository, arXiv) | page number, 100 a page (no key needed; a cursor would need one past its first page) |
 | Crossref | title; JATS abstract, `<jats:title>` headings as labels | subjects | journal | cursor, 200 a page |
 | DOAJ | title; abstract | keywords | journal | page number, 100 a page, 1,000 at most |
 | DataCite | main title; the abstract description, or the first | subjects (field-of-science prefixes removed) | container, or publisher | page number, 200 a page |
@@ -809,9 +810,9 @@ window resizes and changes of the colour scheme.
 The page keeps its settings in the browser (`localStorage`, under
 `broccoli.settings.v1`): the source, the number of records, the order, the
 algorithm, the map style, each source's filters, the text options, the
-parameters, the keys and addresses of the sources that take them (an NCBI
-API key, contact e-mail and E-utilities address, an OpenAlex API key, a
-contact e-mail for Crossref, the Wikipedia language), and the theme. Filters
+parameters, the addresses of the sources that take them (a contact e-mail
+and E-utilities address for PubMed, a contact e-mail for Crossref, the
+Wikipedia language), and the theme. The page asks for no API key. Filters
 and NCBI settings saved by 1.3 and earlier are read into the new places.
 Nothing else is stored. The address's fragment holds the search and the
 choices that decide the records and topics, so a link opens the same view
@@ -839,7 +840,7 @@ map style, which stays the visitor's own unless the link names one.
 |---|---|
 | records a search | 100 to 2,000 (1,000 on OpenAlex, arXiv and DOAJ); a link may ask for any number up to 2,000 |
 | fields a document | 31 |
-| PubMed | ESearch: 10,000 records at most a request; EFetch: batches of 200 (500 at most); one request every 349 ms without an API key, one every 115 ms with a key or through a proxy (NCBI allows 3 and 10 a second); 4 retries on 429 and server errors, after 0.6, 1.2, 2.4 and 4.8 s or as `Retry-After` asks, 2 on network errors, a 45 s timeout |
+| PubMed | ESearch: 10,000 records at most a request; EFetch: batches of 200 (500 at most); one request every 349 ms, or one every 115 ms with a key passed in code or through a proxy (NCBI allows 3 and 10 a second); 4 retries on 429 and server errors, after 0.6, 1.2, 2.4 and 4.8 s or as `Retry-After` asks, 2 on network errors, a 45 s timeout |
 | other sources | 5 requests a second (Europe PMC, OpenAlex, DataCite, Wikipedia), 3 (ClinicalTrials.gov), 2 (DOAJ, INSPIRE-HEP), 1 (Crossref), one every 3 s (arXiv's API); 3 retries on 429 and server errors, 1 on network errors, a 30 s timeout |
 | subtopics | six levels below the search, groups of 8 or more records |
 | drawn | 600 records a map, 400 dots a cell, 28 florets, 9 beads a bubble |

@@ -85,7 +85,7 @@
       var res = await D.searchSource(sourceId, query, {
         limit: 200,
         onProgress: function (done, total) { status.textContent = 'Fetched ' + done + ' of ' + total + ' records…'; },
-        // settings: { apiKey: '…' }   ← the source's own settings, such as an OpenAlex key
+        // settings: { email: '…' }   ← the source's own settings, such as a contact e-mail for Crossref (no source needs a key)
       });
       status.textContent = 'Clustering…';
       var result = await clusterer.cluster(D.toDocuments(res.records), {

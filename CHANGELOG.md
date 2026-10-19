@@ -1,5 +1,51 @@
 # Changes
 
+## 1.5.0
+
+Broccoli now says what it is, a GenesisL1 in-house open-source search
+results clustering engine; no source asks for an API key any more; and the
+repository comes with full documentation.
+
+Sources:
+
+- **OpenAlex and arXiv page by number.** Both now ask for numbered pages of
+  100 records (`page=1`, `2`, `3`…) instead of a cursor. OpenAlex answers the
+  second page of a cursor only for callers with an API key (HTTP 401, "API
+  key required for cursor paging"), while numbered pages work for everyone,
+  up to 10,000 results. Searches of more than 100 records on the OpenAlex
+  and arXiv tabs work again, with no key.
+- **No API key fields.** The search page no longer asks for an NCBI or an
+  OpenAlex key, and forgets any key an earlier version kept. Settings,
+  Access holds only optional contact e-mails and a proxy address. Code can
+  still pass a free key as `settings.apiKey` to the PubMed and OpenAlex
+  sources.
+- **Clearer messages.** When OpenAlex's daily allowance for an address is
+  spent, the page says so, and that it renews the next day while the other
+  sources keep working. An HTTP 401 or 403 from a source no longer suggests
+  getting a key, and NCBI's rate limiting asks for a minute's wait.
+
+GenesisL1:
+
+- The README, the documentation, the search page, the library's banner,
+  every file's header and `CITATION.cff` present Broccoli as GenesisL1's
+  in-house search results clustering engine, with links to
+  genesisl1.com/broccoli.html, the GenesisL1 ecosystem and GL1X. The search
+  page's landing names the GenesisL1 ecosystem, the Broccoli page and the
+  source code, and its settings name the version as a GenesisL1 project.
+
+Documentation:
+
+- New pages: `docs/README.md` (where to start), `docs/SEARCH-PAGE.md` (the
+  search page, links that open a search, troubleshooting),
+  `docs/SOURCES.md` (every source in detail, and writing your own),
+  `docs/EMBEDDING.md` (links, frames, the library and the maps on your
+  pages), `docs/SELF-HOSTING.md` (static hosts, an nginx configuration,
+  caching, a Content Security Policy, the E-utilities proxy),
+  `docs/GENESISL1.md` (Broccoli in the GenesisL1 ecosystem) and
+  `docs/FAQ.md`, plus `CONTRIBUTING.md` and `SECURITY.md`.
+- New example: `examples/map.html` draws the maps on a page of your own,
+  with zooming.
+
 ## 1.4.1
 
 - **The 🥦 mark.** Broccoli's mark is now the Unicode broccoli, drawn by the

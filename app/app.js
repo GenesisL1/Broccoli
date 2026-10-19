@@ -1,5 +1,5 @@
 /*
- * Broccoli — topic maps for search results.
+ * Broccoli — GenesisL1's search page: topic maps for search results.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
  * The search page: a search source (PubMed, Europe PMC, preprints, arXiv,
@@ -57,7 +57,7 @@
     fromYear: '',
     toYear: '',
     filters: {},          // per source: { pubmed: { abstracts: true, … } }; missing ones are the source's defaults
-    sourceSettings: {},   // per source: API keys, contact e-mail, proxy address, language
+    sourceSettings: {},   // per source: contact e-mail, proxy address, language
     mesh: false,
     biomedical: true,
     stopwords: '',
@@ -85,11 +85,13 @@
           } else s[k] = saved[k];
         });
         // …and so were the NCBI settings.
-        if (saved.apiKey || saved.email || saved.baseUrl) {
-          s.sourceSettings.pubmed = Object.assign({ apiKey: saved.apiKey || '', email: saved.email || '', baseUrl: saved.baseUrl || '' }, s.sourceSettings.pubmed || {});
+        if (saved.email || saved.baseUrl) {
+          s.sourceSettings.pubmed = Object.assign({ email: saved.email || '', baseUrl: saved.baseUrl || '' }, s.sourceSettings.pubmed || {});
         }
       }
     } catch (e) { /* storage unavailable: defaults */ }
+    // The page asks for no API keys: forget any that an earlier version kept.
+    ['pubmed', 'openalex'].forEach(function (id) { if (s.sourceSettings[id]) delete s.sourceSettings[id].apiKey; });
     if (!ALGORITHM_NAMES[s.algorithm]) s.algorithm = 'lingo';
     if (s.sort === 'pub_date') s.sort = 'date';  // PubMed's name for it before 1.4
     s.view = viewName(s.view) || DEFAULTS.view;
@@ -294,21 +296,20 @@
     var name = src.name;
     var openalex = src.service === 'openalex';
     if (kind === 'network') {
-      if (src.id === 'pubmed') return 'Could not reach PubMed. Check your connection. If a firewall blocks NCBI, set a proxy address under Settings, Keys and access.';
+      if (src.id === 'pubmed') return 'Could not reach PubMed. Check your connection. If a firewall blocks NCBI, set a proxy address under Settings, Access.';
       return 'Could not reach ' + name + '. Check your connection and try again.';
     }
     if (kind === 'timeout') return name + ' did not answer in time. Try again, or ask for fewer records.';
     if (kind === 'rate-limit') {
-      if (src.id === 'pubmed') return 'NCBI is limiting requests from this address. Wait a minute, or add an NCBI API key in Settings.';
+      if (src.id === 'pubmed') return 'NCBI is limiting requests from this address. Wait a minute and try again.';
       if (openalex) {
-        return settingsFor(src).apiKey
-          ? 'OpenAlex is not taking more searches with this API key for now. Try again later.'
-          : 'OpenAlex is not taking more searches from this address for now: without an API key it allows only a few a day. Add your free OpenAlex key under Settings, Keys and access, or try again later.';
+        return name + ' has reached its daily allowance of searches from this address (OpenAlex sets one for every address). ' +
+          'It renews tomorrow; the other sources keep working.';
       }
       return name + ' is limiting requests from this address. Wait a minute and try again.';
     }
-    if (kind === 'http' && (err.status === 401 || err.status === 403) && settingsFor(src).apiKey) {
-      return name + ' did not accept the API key in Settings (HTTP ' + err.status + ').';
+    if (kind === 'http' && (err.status === 401 || err.status === 403)) {
+      return name + ' turned this search down (HTTP ' + err.status + '). Try again with fewer records, or search another source.';
     }
     if (kind === 'http' && err.status === 400) {
       var said = apiDetail(err);
@@ -2008,7 +2009,7 @@
   renderSourceTabs();
   applySource();
   syncControls();
-  $('version-line').textContent = 'Broccoli ' + D.VERSION + ' · MIT License, Decentralized Science Labs LLC.';
+  $('version-line').textContent = 'Broccoli ' + D.VERSION + ' · a GenesisL1 project · MIT License, Decentralized Science Labs LLC.';
   renderExamplesList();
   if (initial.q) runSearch(initial.q, { updateHash: false, path: initial.path });
   else renderLanding();
