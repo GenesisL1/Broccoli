@@ -50,7 +50,7 @@
 
   var DEFAULTS = {
     source: sourceOf('pubmed').id,
-    retmax: 200,
+    retmax: 1000,
     sort: 'relevance',
     algorithm: 'lingo',
     view: 'treemap',
@@ -65,6 +65,7 @@
     labelFormat: 'title',
     params: { lingo: {}, stc: {}, bkm: {} },
     theme: 'system',
+    settingsVersion: 2,
   };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -87,6 +88,11 @@
         // …and so were the NCBI settings.
         if (saved.email || saved.baseUrl) {
           s.sourceSettings.pubmed = Object.assign({ email: saved.email || '', baseUrl: saved.baseUrl || '' }, s.sourceSettings.pubmed || {});
+        }
+        // Before 1.5.2 the page fetched 200 records by default; it now fetches 1,000.
+        if (!saved.settingsVersion) {
+          if (saved.retmax === 200) s.retmax = DEFAULTS.retmax;
+          s.settingsVersion = DEFAULTS.settingsVersion;
         }
       }
     } catch (e) { /* storage unavailable: defaults */ }
@@ -1408,38 +1414,18 @@
 
   // ---------------------------------------------------------------- source tabs
 
+  // Every tab is always in sight: the tabs wrap onto more lines where the
+  // row is narrow, a group of sources (biomedicine, preprints…) at a time.
   function renderSourceTabs() {
-    var html = '';
-    var group = null;
+    var groups = [];
     SOURCES.forEach(function (src) {
-      if (group !== null && src.group !== group) html += '<span class="tab-sep" aria-hidden="true"></span>';
-      group = src.group;
+      var last = groups[groups.length - 1];
+      if (!last || last.name !== src.group) groups.push(last = { name: src.group, html: '' });
       var on = src.id === settings.source;
-      html += '<button type="button" role="tab" class="source-tab" id="tab-' + esc(src.id) + '" data-source="' + esc(src.id) + '" aria-selected="' + on + '"' +
+      last.html += '<button type="button" role="tab" class="source-tab" id="tab-' + esc(src.id) + '" data-source="' + esc(src.id) + '" aria-selected="' + on + '"' +
         ' aria-controls="search-form" tabindex="' + (on ? 0 : -1) + '" title="' + esc(src.name + ': ' + src.description) + '">' + esc(src.shortName) + '</button>';
     });
-    $('source-tabs').innerHTML = html;
-    revealTab();
-  }
-
-  /** Scrolls the tab row (not the page) so the selected tab shows. */
-  function revealTab() {
-    var row = $('source-tabs');
-    var tab = row.querySelector('[aria-selected="true"]');
-    if (tab && row.scrollWidth > row.clientWidth) {
-      var left = tab.offsetLeft - row.offsetLeft;
-      if (left < row.scrollLeft + 24 || left + tab.offsetWidth > row.scrollLeft + row.clientWidth - 24) {
-        row.scrollLeft = Math.max(0, left - (row.clientWidth - tab.offsetWidth) / 2);
-      }
-    }
-    tabFades();
-  }
-
-  /** Fades the edge of the tab row where more tabs are hidden. */
-  function tabFades() {
-    var row = $('source-tabs');
-    row.classList.toggle('fade-left', row.scrollLeft > 2);
-    row.classList.toggle('fade-right', row.scrollLeft + row.clientWidth < row.scrollWidth - 2);
+    $('source-tabs').innerHTML = groups.map(function (g) { return '<span class="tab-group" role="presentation">' + g.html + '</span>'; }).join('');
   }
 
   /** Brings the page in line with the current source: tabs, placeholder, options, filters, notes. */
@@ -1450,7 +1436,6 @@
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       t.tabIndex = on ? 0 : -1;
     });
-    revealTab();
     // Phones have room for the example alone; the tab above says where it searches.
     $('q').placeholder = window.innerWidth < 600 && src.placeholder ? 'e.g. ' + src.placeholder : 'Search ' + src.name + (src.placeholder ? ', e.g. ' + src.placeholder : '');
     $('q-label').textContent = 'Search ' + src.name;
@@ -1566,10 +1551,26 @@
     if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme);
     else root.removeAttribute('data-theme');
     dark = Colors.isDark();
+    syncThemeSwitch();
+  }
+
+  /** The header's light and dark switch shows the theme on screen. */
+  function syncThemeSwitch() {
+    var b = $('theme-switch');
+    if (!b) return;
+    var on = Colors.isDark();
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.title = on ? 'Switch to the light theme' : 'Switch to the dark theme';
+  }
+
+  /** Tells the page around the search page (a site that hosts it) which theme the reader picked. */
+  function announceTheme() {
+    try { window.dispatchEvent(new CustomEvent('broccoli:themechange', { detail: { theme: settings.theme } })); } catch (e) { /* old browser */ }
   }
 
   function themeChanged() {
     dark = Colors.isDark();
+    syncThemeSwitch();
     if (!$('landing').hidden) renderLanding();
     if (!state.root) return;
     views.refresh();
@@ -1709,13 +1710,6 @@
     if (b) selectSource(b.getAttribute('data-source'));
   });
 
-  $('source-tabs').addEventListener('scroll', tabFades, { passive: true });
-  // The tabs change width when the web fonts arrive.
-  if (document.fonts) {
-    if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', revealTab);
-    if (document.fonts.ready) document.fonts.ready.then(revealTab, function () {});
-  }
-
   $('source-tabs').addEventListener('keydown', function (e) {
     var tabs = Array.prototype.slice.call(this.querySelectorAll('[role="tab"]'));
     var i = tabs.indexOf(document.activeElement);
@@ -1729,7 +1723,6 @@
     e.preventDefault();
     tabs.forEach(function (t) { t.tabIndex = t === next ? 0 : -1; });
     next.focus();
-    next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   });
 
   $('opt-algorithm').addEventListener('click', function (e) {
@@ -1914,7 +1907,17 @@
   bindSetting('opt-stoplabels', function (el) { settings.stoplabels = el.value; }, scheduleRecluster);
   bindSetting('opt-labelformat', function (el) { settings.labelFormat = el.value; }, scheduleRecluster);
   // A theme picked in the settings wins over the embedding page's until it sends another.
-  bindSetting('opt-theme', function (el) { settings.theme = el.value; embedTheme = null; }, function () { applyTheme(); themeChanged(); });
+  bindSetting('opt-theme', function (el) { settings.theme = el.value; embedTheme = null; }, function () { applyTheme(); themeChanged(); announceTheme(); });
+  // The header's switch: light or dark, saved like the setting, and it too wins over the embedding page's.
+  $('theme-switch').addEventListener('click', function () {
+    settings.theme = Colors.isDark() ? 'light' : 'dark';
+    embedTheme = null;
+    saveSettings();
+    $('opt-theme').value = settings.theme;
+    applyTheme();
+    themeChanged();
+    announceTheme();
+  });
 
   if (window.matchMedia) {
     var mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -1962,7 +1965,6 @@
       if (size === lastSize && !mapExpanded) return;
       lastSize = size;
       placeThumb();
-      revealTab();
       if (!$('results').hidden && state.root) {
         views.refresh();
         if (settings.view === 'florets') renderFlorets(false);

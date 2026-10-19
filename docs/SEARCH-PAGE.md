@@ -24,8 +24,9 @@ asks for no account and no API key.
 **Pick a source.** The tabs above the search box are the sources, grouped by
 kind: PubMed, Europe PMC and Trials for biomedicine; Preprints and arXiv;
 OpenAlex, Crossref and DOAJ for every field; DataCite for data and code;
-INSPIRE for physics; Wikipedia for everything else. On a phone the tabs
-scroll sideways. Below the box, a card describes the source you are on, with
+INSPIRE for physics; Wikipedia for everything else. Every tab is always in
+sight: where the row is too narrow, the tabs wrap onto a second or third
+line instead of scrolling. Below the box, a card describes the source you are on, with
 a note on its query syntax and links to its site and documentation. With a
 query on the page, another tab runs the same query on its source, so you can
 compare what different indexes hold. Each source keeps its own filters.
@@ -39,8 +40,8 @@ pick it from the list beside them.
 
 **Choose how much and in what order**, next to the box:
 
-- **Records**: how many records to fetch and cluster: 100, 200 (the default),
-  300, 500, 1,000 or 2,000, up to the source's most (1,000 for arXiv,
+- **Records**: how many records to fetch and cluster: 100, 200, 300, 500,
+  1,000 (the default) or 2,000, up to the source's most (1,000 for arXiv,
   OpenAlex and DOAJ). More records give finer topics and take longer to
   fetch.
 - **Order**: the source's own orders: best match, most recent, most cited,
@@ -167,7 +168,9 @@ The Settings button opens a panel. Settings are kept in this browser only.
   contact e-mail for Crossref, which serves such requests from its more
   reliable pool. No source asks for a key or an account, and each setting is
   sent only to the service it belongs to.
-- **Appearance**: light, dark or the system's theme.
+- **Appearance**: light, dark or the system's theme. The switch at the top
+  right of the page flips between light and dark, and is remembered the same
+  way.
 
 Changes to the text options and parameters re-cluster the records on the
 page at once; changes to the filters and years apply to your next search.
@@ -185,7 +188,7 @@ index.html#s=arxiv&q=graph+neural+networks&sort=date&n=500&v=bubbles
 |---|---|---|
 | `s` | the source | a source id, such as `pubmed` (the default), `europepmc`, `clinicaltrials`, `preprints`, `arxiv`, `openalex`, `crossref`, `doaj`, `datacite`, `inspire`, `wikipedia` |
 | `q` | the query | text |
-| `n` | records to fetch | up to 2,000 and the source's most; 200 by default |
+| `n` | records to fetch | up to 2,000 and the source's most; 1,000 by default |
 | `sort` | the order | `relevance` (the default), `date`, `cited`, or `added` for DOAJ |
 | `a` | the algorithm | `lingo` (the default), `stc`, `bkm` |
 | `from`, `to` | years | four-digit years |
@@ -237,7 +240,7 @@ on your own site.
 | Could not reach (another source) | The same for that source. Try again in a moment, or another source. |
 | … did not answer in time | The source did not answer within 30 seconds (45 for PubMed). Try again, or ask for fewer records. |
 | NCBI is limiting requests from this address | Too many requests reached NCBI from your network, which can happen on a shared connection. Wait a minute and try again. |
-| OpenAlex (or arXiv) has reached its daily allowance | OpenAlex gives every address a daily allowance of searches, about fifty of 200 records, and the arXiv tab shares it. It renews the next day; the other sources keep working. For arXiv papers, try Preprints or INSPIRE in the meantime. |
+| OpenAlex (or arXiv) has reached its daily allowance | OpenAlex gives every address a daily allowance of searches, about ten of 1,000 records (the page's default) or fifty of 200, and the arXiv tab shares it. It renews the next day; the other sources keep working. For arXiv papers, try Preprints or INSPIRE in the meantime. |
 | … turned this search down (HTTP 401 or 403) | The source refused the request. Try again with fewer records, or search another source. |
 | … could not run this search | The source could not read the query; its message and its syntax note follow. Check quotes, brackets and field names. |
 | Nothing found | Loosen the filters (abstracts only, years) or the query. PubMed and Wikipedia offer a spelling suggestion when they have one. |

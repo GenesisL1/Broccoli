@@ -236,9 +236,9 @@ your site, and sends at most one request every three seconds; then use the
 
 ## Versions
 
-Releases are git tags (`v1.5.1`), and [CHANGELOG.md](../CHANGELOG.md) says
+Releases are git tags (`v1.5.2`), and [CHANGELOG.md](../CHANGELOG.md) says
 what each one changed. To stay on one, check out its tag, or load the library
 from jsDelivr at that tag:
-`https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.1/dist/broccoli.js`.
+`https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.2/dist/broccoli.js`.
 `python3 tools/build.py --check` confirms that `dist/` matches `src/` in a
 copy you changed, and `python3 tools/run_tests.py` runs the tests.

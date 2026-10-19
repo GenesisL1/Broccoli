@@ -49,6 +49,11 @@ whole tab. [genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html)
 works this way: its example searches and "Try" buttons open its copy of the
 search page in a new tab (`target="_blank" rel="noopener"`), adding
 `?theme=light` or `?theme=dark` when the reader picked a theme on the site.
+The other way round, when the reader picks a theme on the search page, with
+the switch at its top right or in the settings, the page fires a
+`broccoli:themechange` event on its window, with the theme (`light`, `dark`
+or `system`) in `event.detail.theme`; a script of your own on the page can
+keep your site's setting in step, as genesisl1.com does.
 
 ## The search page in a frame
 
@@ -104,11 +109,11 @@ The library is one script with no dependencies. Load it from your own copy
 of `dist/`, or from jsDelivr, pinned to a release tag:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.1/dist/broccoli.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.2/dist/broccoli.js"></script>
 ```
 
 ```js
-import * as Broccoli from 'https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.1/dist/broccoli.mjs';
+import * as Broccoli from 'https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.2/dist/broccoli.mjs';
 ```
 
 A file at a tag never changes, so you can add Subresource Integrity: compute
@@ -120,7 +125,7 @@ Search a source, cluster the records, and show the topics your way:
 
 ```html
 <ul id="topics"></ul>
-<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.1/dist/broccoli.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.2/dist/broccoli.js"></script>
 <script>
   (async function () {
     var res = await Broccoli.searchSource('pubmed', 'senolytics healthy aging', { limit: 300 });

@@ -10,7 +10,7 @@ records in from any search API: PubMed, Europe PMC, ClinicalTrials.gov,
 preprints, arXiv, OpenAlex, Crossref, DOAJ, DataCite, INSPIRE-HEP and
 Wikipedia are built in. It also contains exports for reference managers and
 a search page with a tab for each source. No source needs an API key or an
-account. This guide describes version 1.5.1.
+account. This guide describes version 1.5.2.
 
 It explains how the sources fetch and shape records, how Broccoli reads
 text, how each algorithm finds and names topics, how the maps are laid out
@@ -823,7 +823,7 @@ anywhere:
 |---|---|---|
 | `s` | the source's id | PubMed |
 | `q` | the query | never (`#s=…` alone opens a source) |
-| `n` | records, 100 to 2,000, or the source's maximum | 200 |
+| `n` | records, 100 to 2,000, or the source's maximum | 1,000 |
 | `sort` | the source's order: `date`, `cited`, `added` (`pub_date`, from older links, means `date`) | best match |
 | `a` | `stc` or `bkm` | Lingo |
 | `from`, `to` | years, for sources that have them | not set |

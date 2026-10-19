@@ -1,5 +1,21 @@
 # Changes
 
+## 1.5.2
+
+- **Every source tab in sight.** The source tabs no longer scroll sideways:
+  they sit on one line where there is room and wrap onto a second or third
+  line where there is not, a group of sources at a time on wider screens and
+  one tab at a time on phones. Below 1,020 pixels the header stacks, so the
+  tabs and the search field take the full width.
+- **A light and dark switch** at the top right of the search page, as on
+  genesisl1.com. It saves the reader's choice like the Appearance setting,
+  and wins over a theme set by an embedding page. When the reader picks a
+  theme, the page fires a `broccoli:themechange` event on its window, so the
+  site around it can follow.
+- **1,000 records by default.** A search fetches and clusters 1,000 records
+  unless the reader or the link (`n`) asks for another number. Settings
+  saved with the old default of 200 move to the new one.
+
 ## 1.5.1
 
 The search page now wears GenesisL1's look, the colours and type of

@@ -289,7 +289,7 @@ GenesisL1 ecosystem.
 From a CDN, straight from this repository's tags:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.1/dist/broccoli.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.2/dist/broccoli.js"></script>
 ```
 
 jsDelivr also serves a minified copy if you ask for `broccoli.min.js`.
@@ -457,7 +457,7 @@ as is:
   stats: { … }, timings: { preprocessing: { … }, factorization: 41, total: 380 },
   parameters: { … },               // the parameters that were used
   warnings: [ … ],                 // unknown parameters, clamped values
-  version: '1.5.1',
+  version: '1.5.2',
 }
 ```
 

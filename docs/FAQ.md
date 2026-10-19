@@ -30,7 +30,8 @@ for heavy use; the search page never asks for one.
 ### Why did OpenAlex or arXiv stop answering for the day?
 
 OpenAlex gives every address a daily allowance of searches without a key:
-about a hundred requests, which is some fifty searches of 200 records. The
+about a hundred requests, which is some ten searches of 1,000 records, the
+search page's default, or fifty of 200. The
 arXiv tab reads arXiv's papers from OpenAlex and shares the allowance. When
 it is spent, the page says so; it renews the next day, and the other
 sources keep working. [SOURCES.md](SOURCES.md#openalex-openalex) has the
