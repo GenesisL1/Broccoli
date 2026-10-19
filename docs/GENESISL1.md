@@ -70,14 +70,15 @@ Broccoli is built the way GenesisL1 is:
 
 - **Reproducible.** Every random step draws from a seeded generator, so the
   same records with the same settings always give the same topics and the
-  same map. A link to a search carries the whole search, so it gives
-  everyone the same records.
+  same map. A link to a search carries the whole search, so anyone can run
+  it again; the source decides which records it returns that day.
 - **Traceable.** Broccoli is lexical, with no embeddings and no language
   model: every label is made of words from the records, highlighted where
   they occur. Nothing is summarised or invented.
-- **Open.** The code is MIT-licensed, every method is implemented from its
-  published description, and [NOTICE.md](../NOTICE.md) credits each paper and
-  data source.
+- **Open.** The code is MIT-licensed, the three algorithms are implemented
+  from their published descriptions, Broccoli's own additions (such as label
+  generalization) are documented as its own, and [NOTICE.md](../NOTICE.md)
+  credits each paper and data source.
 - **Direct.** The clustering runs on the reader's device. Searches go from
   the browser to the source; no Broccoli server stands in between, and no
   source needs an account or a key.
