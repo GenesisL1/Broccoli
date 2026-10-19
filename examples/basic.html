@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Broccoli: cluster your own documents</title>
+<style>
+  :root { --bg: #f5f7f2; --fg: #1e2b22; --muted: #5d6b61; --line: #d5ddd2; --panel: #ffffff; --accent: #56795a; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #141a16; --fg: #e3e9e2; --muted: #9aa79d; --line: #2c3730; --panel: #1b231e; --accent: #8fb592; color-scheme: dark; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 60rem; margin: 0 auto; padding: 1.5rem max(16px, env(safe-area-inset-left, 0px)) 3rem max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  p { color: var(--muted); margin: 0 0 1rem; max-width: 42rem; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 14rem; font: 14px/1.45 ui-monospace, monospace; padding: .75rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); }
+  .controls { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin: .75rem 0 1.5rem; }
+  input, select, button { font: inherit; padding: .4rem .7rem; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+  button { background: var(--accent); color: var(--bg); border-color: var(--accent); cursor: pointer; }
+  .cluster { border-top: 1px solid var(--line); padding: .75rem 0; }
+  .cluster h2 { font-size: 1rem; margin: 0 0 .25rem; }
+  .cluster h2 small { color: var(--muted); font-weight: normal; }
+  .cluster ul { margin: 0; padding-left: 1.25rem; color: var(--muted); }
+  #meta { color: var(--muted); font-size: .875rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cluster your own documents</h1>
+  <p>One document per line, or a title line followed by text, with an empty line between documents. Everything runs in this page: nothing is sent anywhere.</p>
+  <textarea id="docs" spellcheck="false"></textarea>
+  <div class="controls">
+    <label>Query <input id="query" value="jaguar" size="12"></label>
+    <label>Algorithm <select id="algorithm"></select></label>
+    <label>Language <select id="language"></select></label>
+    <button id="run" type="button">Cluster</button>
+    <span id="meta"></span>
+  </div>
+  <div id="out"></div>
+</main>
+
+<script src="../dist/broccoli.js"></script>
+<script>
+  // A classic search-results clustering test: one ambiguous query, several meanings.
+  var SAMPLE = [
+    'Jaguar unveils an electric grand tourer with a 700 km range',
+    'Jaguar Land Rover plans to build electric cars at its Castle Bromwich plant',
+    'Review: the new Jaguar F-Type coupe is a fast, loud sports car',
+    'Jaguar car owners report problems with the infotainment system',
+    'Used Jaguar XJ saloon prices fall as buyers move to electric cars',
+    'Jaguar Land Rover recalls cars over a faulty seat belt sensor',
+    'The jaguar is the largest wild cat in the Americas',
+    'Camera traps count jaguars in the rainforest of the Amazon basin',
+    'Jaguar populations recover where cattle ranchers and the wild cat share land',
+    'Why the jaguar has the strongest bite of any big cat',
+    'Conservation corridors help the jaguar move between forest reserves',
+    'A jaguar cub born at the zoo is the first of its kind in a decade',
+    'Mac OS X 10.2 Jaguar brought Quartz Extreme and iChat to the Mac',
+    'Installing Mac OS X Jaguar on an older PowerPC Mac',
+    'Jaguar was the first Mac OS X release to use the big cat name in public',
+    'Running classic Mac OS applications on OS X Jaguar',
+    'Fender Jaguar guitar: short scale, offset body and a bright surf sound',
+    'The Fender Jaguar guitar returns in a new vintage series',
+    'How to set up the tremolo on a Fender Jaguar guitar',
+    'Surf rock bands made the Fender Jaguar guitar famous in the sixties'
+  ].join('\n');
+
+  var D = window.Broccoli;
+  var clusterer = D.createClusterer(); // runs in a Web Worker when it can
+  var $ = function (id) { return document.getElementById(id); };
+
+  $('docs').value = SAMPLE;
+  D.listAlgorithms().forEach(function (a) { $('algorithm').add(new Option(a.name, a.id)); });
+  D.listLanguages().forEach(function (l) { $('language').add(new Option(l.name, l.code)); });
+
+  function parseDocuments(text) {
+    var blocks = text.split(/\n\s*\n/);
+    if (blocks.length === 1) return text.split('\n').filter(Boolean).map(function (t) { return { title: t }; });
+    return blocks.map(function (b) {
+      var lines = b.trim().split('\n');
+      return { title: lines[0], snippet: lines.slice(1).join(' ') };
+    }).filter(function (d) { return d.title; });
+  }
+
+  function render(result, docs) {
+    var out = $('out');
+    out.textContent = '';
+    result.clusters.forEach(function (c) {
+      var div = document.createElement('div');
+      div.className = 'cluster';
+      var h = document.createElement('h2');
+      h.textContent = c.label + ' ';
+      var small = document.createElement('small');
+      small.textContent = c.size + (c.size === 1 ? ' document' : ' documents');
+      h.appendChild(small);
+      var ul = document.createElement('ul');
+      c.documents.forEach(function (i) {
+        var li = document.createElement('li');
+        li.textContent = docs[i].title;
+        ul.appendChild(li);
+      });
+      div.appendChild(h);
+      div.appendChild(ul);
+      out.appendChild(div);
+    });
+    $('meta').textContent = result.documentCount + ' documents, ' + result.timings.total + ' ms (' + clusterer.mode + ')';
+  }
+
+  $('run').addEventListener('click', function () {
+    var docs = parseDocuments($('docs').value);
+    clusterer.cluster(docs, {
+      algorithm: $('algorithm').value,
+      language: $('language').value,
+      queryHint: $('query').value  // the query's own words never make a label on their own
+    }).then(function (result) { render(result, docs); }, function (err) { $('meta').textContent = err.message; });
+  });
+  $('run').click();
+</script>
+</body>
+</html>

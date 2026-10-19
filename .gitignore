@@ -1,0 +1,13 @@
+# Python tooling
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# editors and systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Broccoli tests (src)</title>
+<link rel="stylesheet" href="tests.css">
+</head>
+<body>
+<h1>Broccoli tests <small>ES modules in src/</small></h1>
+<p id="summary">Running…</p>
+<ol id="results"></ol>
+<script src="../app/colors.js"></script>
+<script src="../app/views.js"></script>
+<script src="../app/florets.js"></script>
+<script type="module">
+  import { runAll } from './all.js';
+  import { renderResults } from './report.js';
+  renderResults(runAll);
+</script>
+</body>
+</html>

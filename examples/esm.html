@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Broccoli: ES modules</title>
+<style>
+  :root { --bg: #f5f7f2; --fg: #1e2b22; --muted: #5d6b61; --line: #d5ddd2; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #141a16; --fg: #e3e9e2; --muted: #9aa79d; --line: #2c3730; color-scheme: dark; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 60rem; margin: 0 auto; padding: 1.5rem max(16px, env(safe-area-inset-left, 0px)) 3rem max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.05rem; margin: 1.5rem 0 .25rem; }
+  p { color: var(--muted); margin: 0 0 1rem; max-width: 42rem; }
+  pre { white-space: pre-wrap; border-top: 1px solid var(--line); padding-top: .5rem; font: 14px/1.5 ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Using the ES module build</h1>
+  <p>Modules need a web server (browsers do not load them from disk): run <code>python3 tools/serve.py</code> in the project folder and open <code>http://localhost:8000/examples/esm.html</code>. The same code works with <code>../src/index.js</code> instead of the single-file build.</p>
+  <h2>German documents, three algorithms</h2>
+  <pre id="out">Clustering…</pre>
+</main>
+
+<script type="module">
+  // "import * as" works for both the build and src/index.js (which has no default export).
+  import * as Broccoli from '../dist/broccoli.mjs';
+  const { cluster, listLanguages } = Broccoli;
+
+  const documents = [
+    'Die Behandlung von Typ-2-Diabetes mit Insulin senkt den Blutzucker',
+    'Insulin und Metformin bei der Behandlung von Diabetes',
+    'Neue Insuline senken den Blutzucker bei Diabetes',
+    'Der Blutzucker von Patienten mit Diabetes nach der Behandlung',
+    'Schulung zur Insulintherapie bei Diabetes verbessert den Blutzucker',
+    'Der Klimawandel erwärmt die Meere und bedroht die Korallenriffe',
+    'Korallenriffe sterben, weil der Klimawandel die Meere erwärmt',
+    'Wie der Klimawandel die Temperatur der Meere verändert',
+    'Die Erwärmung der Meere durch den Klimawandel schadet den Korallenriffen',
+    'Der Klimawandel und die Zukunft der Korallenriffe',
+    'Die Mannschaft gewann das Fußballspiel im ausverkauften Stadion',
+    'Im Stadion feierten die Fans den Sieg der Mannschaft',
+    'Der Trainer lobte die Mannschaft nach dem Fußballspiel',
+    'Die Fans der Mannschaft füllten das Stadion',
+    'Nach dem Fußballspiel verließ die Mannschaft das Stadion',
+  ];
+
+  const lines = [];
+  for (const algorithm of ['lingo', 'stc', 'bkm']) {
+    // Synchronous call on the main thread; Broccoli.createClusterer() gives the same in a worker.
+    const result = cluster(documents, { algorithm, language: 'de' });
+    lines.push(algorithm + ': ' + result.clusters.map((c) => c.label + ' (' + c.size + ')').join(' · '));
+  }
+  lines.push('', 'Languages: ' + listLanguages().map((l) => l.name).join(', '), 'Version ' + Broccoli.VERSION);
+  document.getElementById('out').textContent = lines.join('\n');
+</script>
+</body>
+</html>

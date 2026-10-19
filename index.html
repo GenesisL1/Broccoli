@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Broccoli: PubMed search with topic clusters</title>
+<meta name="description" content="Search PubMed and read the results as a zoomable map of labelled topics and subtopics. Lingo, STC and bisecting k-means clustering run entirely in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M13.4 31.2c.9-3.2 1.1-6.2.5-9.6l-2.6-2.7 1.4-.9 2.9 2.3h.8l2.9-2.3 1.4.9-2.6 2.7c-.6 3.4-.4 6.4.5 9.6z' fill='%233f7046'/%3E%3Cg fill='%232c6a39' stroke='%23fff' stroke-width='1.4'%3E%3Ccircle cx='12.4' cy='9' r='5.6'/%3E%3Ccircle cx='19.6' cy='9' r='5.6'/%3E%3Ccircle cx='8.6' cy='14.2' r='5.1'/%3E%3Ccircle cx='23.4' cy='14.2' r='5.1'/%3E%3Ccircle cx='16' cy='14.6' r='5.4'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preload" href="app/fonts/Newsreader-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="app/fonts/AtkinsonHyperlegible-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="app/app.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="brand" href="#" id="home-link" aria-label="Broccoli home">
+      <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M13.4 31.2c.9-3.2 1.1-6.2.5-9.6l-2.6-2.7 1.4-.9 2.9 2.3h.8l2.9-2.3 1.4.9-2.6 2.7c-.6 3.4-.4 6.4.5 9.6z" fill="var(--stem)"/>
+        <g fill="var(--accent)" stroke="var(--sheet)" stroke-width="1.4">
+          <circle cx="12.4" cy="9" r="5.6"/><circle cx="19.6" cy="9" r="5.6"/>
+          <circle cx="8.6" cy="14.2" r="5.1"/><circle cx="23.4" cy="14.2" r="5.1"/><circle cx="16" cy="14.6" r="5.4"/>
+        </g>
+      </svg>
+      <span>
+        <span class="brand-name">Broccoli</span>
+        <span class="brand-tag">PubMed clustering in your browser</span>
+      </span>
+    </a>
+
+    <form class="search" id="search-form" role="search" autocomplete="off">
+      <div class="search-field">
+        <label for="q" class="visually-hidden">Search PubMed</label>
+        <input id="q" name="q" type="search" placeholder="Search PubMed, e.g. long covid cognitive symptoms" spellcheck="false" enterkeyhint="search">
+      </div>
+      <button class="btn btn-primary" type="submit" id="search-button">Search</button>
+    </form>
+
+    <div class="search-options" aria-label="Search options">
+      <label>Records
+        <select id="opt-retmax">
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="300">300</option>
+          <option value="500">500</option>
+          <option value="1000">1,000</option>
+          <option value="2000">2,000</option>
+        </select>
+      </label>
+      <label>Order
+        <select id="opt-sort">
+          <option value="relevance">Best match</option>
+          <option value="pub_date">Most recent</option>
+        </select>
+      </label>
+      <span class="segmented" role="group" aria-label="Clustering algorithm" id="opt-algorithm">
+        <button type="button" data-algorithm="lingo" aria-pressed="true" title="Lingo: concept-based topics with descriptive labels">Lingo</button>
+        <button type="button" data-algorithm="stc" aria-pressed="false" title="Suffix Tree Clustering: topics from shared phrases">STC</button>
+        <button type="button" data-algorithm="bkm" aria-pressed="false" title="Bisecting k-means: every record in exactly one topic">k-means</button>
+      </span>
+      <button type="button" class="btn btn-quiet" id="open-settings" aria-haspopup="dialog" aria-controls="settings">Settings</button>
+    </div>
+  </div>
+</header>
+
+<div class="status" role="status" aria-live="polite">
+  <p class="status-line" id="status"></p>
+  <div class="progress" id="progress" hidden><span></span></div>
+</div>
+
+<main>
+  <section class="landing" id="landing" aria-labelledby="landing-title">
+    <div>
+      <h1 id="landing-title">Read a PubMed search as a map of its topics</h1>
+      <p>Search the way you would on PubMed. Broccoli fetches up to 2,000 records from NCBI and groups them into labelled topics, so you can see what a literature is made of before you read it. Click a topic to zoom in, and it splits into subtopics of its own.</p>
+      <p class="fine">Clustering runs on this page with Lingo, STC or bisecting k-means. There is no server and no account, and nothing you search is stored.</p>
+    </div>
+    <figure class="landing-map">
+      <svg class="florets" id="landing-florets" aria-label="Example searches"></svg>
+      <figcaption>Pick an example search to start.</figcaption>
+    </figure>
+    <div class="examples" id="examples">
+      <p class="fine">Or start with an example:</p>
+      <ul id="examples-list"></ul>
+    </div>
+  </section>
+
+  <section class="results" id="results" hidden>
+    <figure class="map-figure" id="map-figure">
+      <div class="map-toolbar">
+        <div class="map-nav">
+          <button type="button" class="up-btn" id="stage-up" hidden title="Zoom out one level"><span>Zoom out</span></button>
+          <nav class="crumbs" id="crumbs" aria-label="Where you are in the topics"></nav>
+        </div>
+        <div class="map-tools">
+          <span class="segmented view-switch" role="group" aria-label="Map style" id="view-switch">
+            <span class="seg-thumb" aria-hidden="true"></span>
+            <button type="button" data-view="bubbles" aria-pressed="false" title="Bubbles: topics as circles, sized by their records">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.2" cy="6" r="3.7"/><circle cx="11.6" cy="5" r="2.6"/><circle cx="10.4" cy="11.6" r="3"/><circle cx="3.9" cy="12.6" r="1.6"/></svg><span class="seg-label">Bubbles</span></button>
+            <button type="button" data-view="treemap" aria-pressed="true" title="Treemap: topics as organic cells, subtopics nested inside">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path d="M1.5 9.6 6.6 7.6 8.2 1.5M6.6 7.6 9.8 9.4 14.5 7M9.8 9.4 8.6 14.5"/></svg><span class="seg-label">Treemap</span></button>
+            <button type="button" data-view="radial" aria-pressed="false" title="Radial: topics in the inner ring, subtopics around them">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><circle cx="8" cy="8" r="2.6"/><path d="M8 1.5v4M14.2 10 10.5 8.8M3 12.3l3-2.3"/></svg><span class="seg-label">Radial</span></button>
+            <button type="button" data-view="florets" aria-pressed="false" title="Florets: topics as the florets of a broccoli head, one bud per record">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 11.5 3 5M8 11.5 6 3.2M8 11.5 10 3.2M8 11.5 13 5M8 11.5V15"/><circle cx="3" cy="5" r="1.4"/><circle cx="6" cy="3.2" r="1.4"/><circle cx="10" cy="3.2" r="1.4"/><circle cx="13" cy="5" r="1.4"/></svg><span class="seg-label">Florets</span></button>
+          </span>
+          <button type="button" class="icon-btn" id="expand-map" aria-pressed="false" title="Show the map on the whole screen" aria-label="Full screen map">
+            <svg class="when-off" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>
+            <svg class="when-on" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="stage" id="stage">
+        <svg class="florets" id="florets" hidden></svg>
+        <p class="stage-note" id="stage-note" hidden></p>
+      </div>
+      <figcaption class="map-caption" id="map-caption"></figcaption>
+    </figure>
+
+    <nav class="topics" aria-label="Topics">
+      <div class="topics-head">
+        <h2 id="topics-title">Topics</h2>
+        <span id="topics-count"></span>
+      </div>
+      <ul class="topic-list" id="topic-list"></ul>
+    </nav>
+
+    <div class="records-pane">
+      <div class="records-head">
+        <div>
+          <h2 id="records-title">All records</h2>
+          <span class="records-sub" id="records-sub"></span>
+        </div>
+        <div class="records-actions">
+          <button type="button" class="btn" id="copy-pmids">Copy PMIDs</button>
+          <button type="button" class="btn" id="open-pubmed">Open in PubMed</button>
+          <details class="menu" id="export-menu">
+            <summary class="btn">Export</summary>
+            <div class="menu-list">
+              <button type="button" id="export-ris">RIS<small>Zotero, EndNote, Mendeley</small></button>
+              <button type="button" id="export-bib">BibTeX<small>LaTeX reference lists</small></button>
+              <button type="button" id="export-csv">CSV<small>Spreadsheet with topic labels</small></button>
+              <button type="button" id="export-json">JSON<small>All records and topics of this search</small></button>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <ol class="record-list" id="records"></ol>
+      <div class="more" id="more-wrap" hidden><button type="button" class="btn" id="more">Show more records</button></div>
+
+      <details class="about-result" id="about-result">
+        <summary>About this result</summary>
+        <dl id="about-list"></dl>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer class="colophon">
+  <p><a href="https://github.com/GenesisL1/Broccoli" target="_blank" rel="noopener">Broccoli</a> is open source under the MIT License, made by Decentralized Science Labs LLC. Its Lingo, STC and bisecting k-means are written in JavaScript from the published papers, and run on this page.</p>
+  <p>Records come from <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank" rel="noopener">PubMed</a> through <a href="https://www.ncbi.nlm.nih.gov/books/NBK25501/" target="_blank" rel="noopener">NCBI E-utilities</a>.</p>
+</footer>
+
+<div class="scrim" id="scrim" hidden></div>
+
+<aside class="drawer" id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <div class="drawer-head">
+    <h2 id="settings-title">Settings</h2>
+    <button type="button" class="btn btn-quiet" id="close-settings">Close</button>
+  </div>
+  <div class="drawer-body">
+    <fieldset>
+      <legend>Search filters</legend>
+      <div class="row">
+        <label class="field"><span>From year</span><input type="number" id="opt-from" min="1800" max="2100" placeholder="Any"></label>
+        <label class="field"><span>To year</span><input type="number" id="opt-to" min="1800" max="2100" placeholder="Any"></label>
+      </div>
+      <label class="check"><input type="checkbox" id="f-abstracts"><span>Only records with an abstract<small>Records without one have only a title to cluster on.</small></span></label>
+      <label class="check"><input type="checkbox" id="f-english"><span>English only</span></label>
+      <label class="check"><input type="checkbox" id="f-humans"><span>Humans only</span></label>
+      <label class="check"><input type="checkbox" id="f-free"><span>Free full text only</span></label>
+      <label class="check"><input type="checkbox" id="f-reviews"><span>Reviews only</span></label>
+      <label class="check"><input type="checkbox" id="f-trials"><span>Clinical trials only</span></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Text</legend>
+      <label class="check"><input type="checkbox" id="opt-mesh"><span>Use MeSH headings and author keywords<small>Adds controlled vocabulary to the text that is clustered.</small></span></label>
+      <label class="check"><input type="checkbox" id="opt-biomedical"><span>Ignore scientific boilerplate<small>Words like "results suggest" and labels like "Control Group".</small></span></label>
+      <label class="field"><span>Extra stop words</span><textarea id="opt-stopwords" placeholder="One per line, * as a wildcard: covid*"></textarea><small>Never start or end a label with these words.</small></label>
+      <label class="field"><span>Extra stop labels</span><textarea id="opt-stoplabels" placeholder="One per line, * for any words: * cohort"></textarea><small>Never use these as labels.</small></label>
+      <label class="field"><span>Label style</span>
+        <select id="opt-labelformat">
+          <option value="title">Title Case</option>
+          <option value="sentence">Sentence case</option>
+          <option value="original">As written</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend id="params-legend">Lingo parameters</legend>
+      <p class="hint" id="params-hint"></p>
+      <div id="params"></div>
+      <button type="button" class="btn" id="reset-params">Reset to defaults</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>NCBI access</legend>
+      <p class="hint">Without a key NCBI allows 3 requests a second; with one, 10. Both stay in this browser and are sent only to NCBI.</p>
+      <label class="field"><span>API key</span><input type="password" id="opt-apikey" autocomplete="off" spellcheck="false"><small>Free from your NCBI account settings.</small></label>
+      <label class="field"><span>Contact e-mail</span><input type="email" id="opt-email" autocomplete="email"><small>NCBI asks tools to identify a contact for heavy use.</small></label>
+      <label class="field"><span>E-utilities address</span><input type="url" id="opt-baseurl" placeholder="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/" spellcheck="false"><small>Change only to use a proxy, such as server/eutils-proxy.php from this project.</small></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Appearance</legend>
+      <label class="field"><span>Theme</span>
+        <select id="opt-theme">
+          <option value="system">Match the system</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <p class="hint" id="version-line"></p>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="dist/broccoli.js"></script>
+<script src="app/colors.js"></script>
+<script src="app/views.js"></script>
+<script src="app/florets.js"></script>
+<script src="app/app.js"></script>
+</body>
+</html>
