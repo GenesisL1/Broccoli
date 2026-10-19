@@ -89,17 +89,46 @@ Font License 1.1 (license texts in `app/fonts/`):
 - Newsreader, by Production Type.
 - Atkinson Hyperlegible, by the Braille Institute of America.
 
-## PubMed and NCBI E-utilities
+## Data sources
 
-Search results come from PubMed through the NCBI E-utilities API, a service
-of the National Center for Biotechnology Information at the U.S. National
-Library of Medicine. Broccoli is not affiliated with or endorsed by NCBI or
-NLM. Use of E-utilities is subject to NCBI's usage guidelines
-(https://www.ncbi.nlm.nih.gov/books/NBK25497/) and disclaimer
-(https://www.ncbi.nlm.nih.gov/home/about/policies/). Abstracts in PubMed
-may be protected by the copyright of their publishers.
+The search sources call public APIs from the reader's browser. Broccoli is
+not affiliated with or endorsed by any of the services below. Their records
+stay subject to their own terms, and abstracts may be protected by the
+copyright of their publishers.
 
-The PubMed responses in `tests/fixtures/` are hand-written examples in the
-E-utilities formats and describe fictional articles. The screenshots in
+- **PubMed** through the NCBI E-utilities API, a service of the National
+  Center for Biotechnology Information at the U.S. National Library of
+  Medicine. Use is subject to NCBI's usage guidelines
+  (https://www.ncbi.nlm.nih.gov/books/NBK25497/) and disclaimer
+  (https://www.ncbi.nlm.nih.gov/home/about/policies/).
+- **Europe PMC**, run by EMBL's European Bioinformatics Institute, through
+  its REST API (https://europepmc.org/RestfulWebService); the Preprints
+  source uses the same API.
+- **ClinicalTrials.gov**, a service of the U.S. National Library of
+  Medicine, through its API version 2
+  (https://clinicaltrials.gov/data-api/api).
+- **OpenAlex**, by OurResearch, whose data are released under CC0
+  (https://openalex.org/). The arXiv source reads arXiv's papers from the
+  OpenAlex index.
+- **arXiv**: the arXiv API source follows arXiv's API terms of use
+  (https://info.arxiv.org/help/api/tou.html), including one request every
+  three seconds, and links to arXiv's abstract pages. arXiv's descriptive
+  metadata are available under CC0. Thank you to arXiv for use of its open
+  access interoperability.
+- **Crossref**, through its REST API
+  (https://www.crossref.org/documentation/retrieve-metadata/rest-api/).
+- **DOAJ**, the Directory of Open Access Journals, through its search API
+  (https://doaj.org/api/docs).
+- **DataCite**, through its REST API (https://support.datacite.org/docs/api).
+- **INSPIRE-HEP**, run by a collaboration of high-energy physics
+  laboratories, through its REST API
+  (https://github.com/inspirehep/rest-api-doc).
+- **Wikipedia**, through the MediaWiki action API of the Wikimedia
+  Foundation (https://www.mediawiki.org/wiki/API:Search). Wikipedia text is
+  available under the Creative Commons Attribution-ShareAlike licence; the
+  search page links every result to its page.
+
+The API responses in `tests/fixtures/` are hand-written examples in each
+API's format and describe fictional records. The screenshots in
 `docs/images/` show the topics Broccoli found in a PubMed search for
 `longevity[tiab] AND (aging[tiab] OR ageing[tiab])` with abstracts.

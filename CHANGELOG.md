@@ -1,5 +1,66 @@
 # Changes
 
+## 1.4.0
+
+Broccoli becomes a general topic-map engine for search results, with
+search sources that bring records in from any search API.
+
+Library:
+
+- **Search sources.** A source describes itself (name, sorts, filters,
+  settings, examples) and fetches one page of records (`fetchPage`) or a whole
+  search (`search`). `searchSource(source, query, options)` runs a search on
+  any source, pages through the API, keeps to its rate limit, retries HTTP 429
+  and 5xx, follows an `AbortSignal` and returns complete records.
+  `registerSource`, `getSource`, `listSources`, `unregisterSource` and
+  `defineSource` manage them; `jsonSource` makes a source of any JSON search
+  API from an address template and field paths.
+- **Built-in sources**, all callable from web pages: PubMed, Europe PMC,
+  ClinicalTrials.gov, Preprints (bioRxiv, medRxiv, Research Square, SSRN and
+  more, through Europe PMC), arXiv (through the OpenAlex index), OpenAlex,
+  Crossref, DOAJ, DataCite (datasets and software), INSPIRE-HEP and Wikipedia
+  in eight languages, plus arXiv's own API for servers and proxies.
+- **One record shape** for every source, a superset of the PubMed article:
+  type (article, preprint, trial, dataset, software, page…), venue, links to
+  the record in its source and to PubMed, PMC, arXiv or the DOI, subject
+  terms, tags such as preprint, trial phase or retraction. `toDocuments()`
+  and the exports take records from any source.
+- Helpers for writing sources: `createRequester()`, `buildUrl()`,
+  `makeRecord()`, markup readers that turn HTML and JATS abstracts into plain
+  text, safe HTML and labelled sections, name and date parsers.
+- Exports: RIS and BibTeX types follow the record (preprints, datasets,
+  software, trials, web pages); BibTeX keys stay `pmid…` for PubMed records
+  and are made from the source and id for the others. The CSV gains `source`
+  and `id` columns and calls the journal column `venue`; JSON clusters list
+  record `ids` (and `pmids` when every record has one).
+- `MESH_CHECK_TAGS`, `uninvertMesh`, `formatAuthors` and `toDocuments` moved
+  to the sources' records module; they are exported as before.
+
+Search page:
+
+- **A tab for each source** above the search box, grouped by kind. With a
+  query on the page, a tab runs the same query on the new source. Each
+  source has its own sorts, filters, record limit, example searches and
+  query syntax note; sources registered before `app/app.js` loads get tabs
+  too.
+- Records from any source: citations with the journal, preprint server,
+  repository or sponsor; tags for preprints, reviews, retractions, trial
+  phases and statuses; the source's links; subject terms (MeSH, keywords,
+  conditions and interventions, subjects).
+- Settings show the filters of the source you are on, and keys and access
+  for every source that takes them (NCBI, OpenAlex, Crossref). Filters and
+  NCBI settings saved by earlier versions carry over.
+- The address holds the source (`s=`, left out for PubMed) and, for
+  Wikipedia, the language (`lang=`); links made by earlier versions open the
+  same PubMed search. `#s=arxiv` alone opens a source.
+- Wikipedia searches in other languages are clustered and labelled in their
+  language.
+- New records replace the ones on show only once they are grouped, so the map
+  and the list always match, and a new search can start while one is
+  running.
+- Errors say what the source said: a refused key, OpenAlex's daily
+  allowance, a query the API could not read.
+
 ## 1.3.0
 
 Search page:

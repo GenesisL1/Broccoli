@@ -4,6 +4,7 @@ import './test-core.js';
 import './test-preprocessing.js';
 import './test-algorithms.js';
 import './test-pubmed.js';
+import './test-sources.js';
 import './test-worker.js';
 import './test-views.js';
 

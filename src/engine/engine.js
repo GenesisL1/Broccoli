@@ -13,7 +13,7 @@ import { bisectingKMeans } from '../algorithms/bisecting-kmeans.js';
 import { getAlgorithm, resolveParameters, deepMerge } from './attributes.js';
 import { now } from '../preprocessing/context.js';
 
-export const VERSION = '1.3.0';
+export const VERSION = '1.4.0';
 
 const RUNNERS = { lingo, stc, bkm: bisectingKMeans };
 

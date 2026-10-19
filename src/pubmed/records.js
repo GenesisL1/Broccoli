@@ -2,21 +2,17 @@
  * Broccoli — browser-native search results clustering.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
- * PubMed EFetch XML (PubmedArticleSet) → plain article objects, and
- * articles → documents for clustering.
+ * PubMed EFetch XML (PubmedArticleSet) → plain article objects, plus the
+ * ESearch and ESpell readers.
  */
 
 import { parseXml, child, children, path, pathAll, textContent, safeHtml } from './xml.js';
+import { formatAuthors } from '../sources/records.js';
+
+// Shared with every source; kept here too, where PubMed code has always found them.
+export { MESH_CHECK_TAGS, uninvertMesh, formatAuthors, toDocuments } from '../sources/records.js';
 
 const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
-
-/** MeSH check tags: demographic descriptors that say nothing about the topic. */
-export const MESH_CHECK_TAGS = new Set([
-  'humans', 'animals', 'male', 'female', 'infant', 'infant, newborn', 'child', 'child, preschool',
-  'adolescent', 'adult', 'young adult', 'middle aged', 'aged', 'aged, 80 and over', 'pregnancy',
-  'mice', 'rats', 'cattle', 'dogs', 'cats', 'swine', 'rabbits', 'guinea pigs', 'cricetinae',
-  'chick embryo', 'in vitro techniques', 'history, ancient', 'history, medieval',
-]);
 
 function parseMonth(m) {
   if (!m) return null;
@@ -70,13 +66,6 @@ function parseAuthors(list) {
       equalContrib: a.attrs.EqualContrib === 'Y',
     };
   });
-}
-
-/** "Smith J, Doe AB, Roe C, et al." */
-export function formatAuthors(authors, max = 3) {
-  const names = authors.map((a) => a.collective || [a.lastName, a.initials].filter(Boolean).join(' ')).filter(Boolean);
-  if (names.length <= max) return names.join(', ');
-  return names.slice(0, max).join(', ') + ', et al.';
 }
 
 function parseAbstract(abstractNode) {
@@ -231,41 +220,6 @@ export function parsePubmedXml(xml) {
     }
   }
   return { articles, error: null };
-}
-
-/**
- * Turns an inverted MeSH heading into natural word order when it has a
- * single inversion: "Diabetes Mellitus, Type 2" → "Type 2 Diabetes Mellitus".
- */
-export function uninvertMesh(descriptor) {
-  const parts = descriptor.split(', ');
-  return parts.length === 2 ? parts[1] + ' ' + parts[0] : descriptor;
-}
-
-/**
- * Articles → clustering documents { id, title, abstract, terms }.
- * options = { includeMesh: false, includeKeywords: false, majorMeshOnly: false }
- * MeSH headings and keywords (when enabled) go into a "terms" field joined
- * by semicolons, so phrases never run from one heading into the next.
- */
-export function toDocuments(articles, options = {}) {
-  return articles.map((a) => {
-    const terms = [];
-    if (options.includeMesh) {
-      for (const m of a.mesh) {
-        if (MESH_CHECK_TAGS.has(m.descriptor.toLowerCase())) continue;
-        if (options.majorMeshOnly && !m.major && !m.qualifiers.some((q) => q.major)) continue;
-        terms.push(uninvertMesh(m.descriptor));
-      }
-    }
-    if (options.includeKeywords) terms.push(...a.keywords);
-    return {
-      id: a.pmid,
-      title: a.title,
-      abstract: a.abstract,
-      terms: terms.join('; '),
-    };
-  });
 }
 
 /** Parses an ESpell response. Returns the corrected query or null. */

@@ -1,15 +1,22 @@
 # Broccoli
 
-**Read a literature as a map.** Broccoli groups search results into labelled
-topics in the browser, with Lingo, Suffix Tree Clustering (STC) or bisecting
-k-means, and draws them as zoomable maps. It comes with a PubMed search page:
-type a query, and up to 2,000 records become a map of their topics. Click a
-topic and Broccoli zooms in and clusters that topic's records again, so you
-can go down level by level, up to six levels deep.
+**Topic maps for search results.** Broccoli takes the records a search
+returns, whatever searched for them, groups them into labelled topics in the
+browser with Lingo, Suffix Tree Clustering (STC) or bisecting k-means, and
+draws the topics as zoomable maps. Click a topic and Broccoli zooms in and
+clusters that topic's records again, so you can go down level by level, up
+to six levels deep.
+
+It comes with eleven search sources built in, ten for science and one
+general (PubMed, Europe PMC, ClinicalTrials.gov, preprints, arXiv, OpenAlex,
+Crossref, DOAJ, DataCite, INSPIRE-HEP and Wikipedia), and a search page with a
+tab for each. Any other
+search API plugs in with a few lines of code, or none: give it an address
+template and the names of the fields.
 
 There is no server, no build step and nothing to install. Open `index.html`,
-or put the folder on any static host. The library is one file with no
-dependencies.
+or put the folder on any static host; visitors' browsers call the search
+APIs directly. The library is one file with no dependencies.
 
 MIT License, © 2026 Decentralized Science Labs LLC.
 
@@ -28,27 +35,29 @@ again.
 ## Contents
 
 ```
-index.html               the PubMed search page
+index.html               the search page, with a tab for each source
 app/                     its script, styles, colours, the maps and bundled fonts
 dist/broccoli.js         the library as one classic script (window.Broccoli, or CommonJS)
 dist/broccoli.mjs        the same library as an ES module
 src/                     the library as ES modules, which dist/ is built from
-examples/                small pages: your own documents, the PubMed API, ES modules
+src/sources/             the search sources and the interface they share
+examples/                small pages: your own documents, any source, the PubMed API, ES modules
 server/eutils-proxy.php  optional proxy that keeps an NCBI API key on your server
 tests/                   browser test suite
 tools/                   build.py, serve.py, run_tests.py (Python 3)
 docs/GUIDE.md            how Broccoli reads text, finds topics and draws its maps
 docs/PARAMETERS.md       every algorithm parameter, with defaults and ranges
 CHANGELOG.md             what changed in each version
-NOTICE.md                credits: the papers, JAMA, Snowball, the fonts, NCBI
+NOTICE.md                credits: the papers, JAMA, Snowball, the fonts, the data sources
 CITATION.cff             how to cite Broccoli
 ```
 
 ## Quick start
 
 1. Open `index.html` in a browser, from disk or from a web server.
-2. Search PubMed, for example `long covid fatigue`, `senolytics` or
-   `crispr[tiab] AND off-target`.
+2. Pick a source and search it, for example `senolytics` on PubMed,
+   `graph neural networks` on arXiv or `psilocybin depression` on
+   ClinicalTrials.gov.
 
 To serve the folder locally, run `python3 tools/serve.py` and open
 http://localhost:8000/. `php -S localhost:8000` and other static servers work
@@ -60,17 +69,51 @@ folder), the page is served at `https://<owner>.github.io/Broccoli/`.
 Opened from disk, everything works. Chrome blocks web fonts on `file://`
 pages, so the page uses system fonts there.
 
+## Sources
+
+Every built-in source answers requests from web pages (CORS), so the search
+page needs no server. Each one turns its API's records into the same record
+shape, described under [Search sources](#search-sources) below.
+
+| Tab | Source | What it searches | Notes |
+|---|---|---|---|
+| PubMed | [PubMed](https://pubmed.ncbi.nlm.nih.gov/) through NCBI E-utilities | MEDLINE, PubMed Central and NCBI Bookshelf | PubMed syntax and filters, MeSH, spelling suggestions; optional NCBI key or proxy |
+| Europe PMC | [Europe PMC](https://europepmc.org/) | PubMed, PubMed Central, Agricola, patents, theses, preprints | its own fielded syntax; abstracts, MeSH, citation counts |
+| Trials | [ClinicalTrials.gov](https://clinicaltrials.gov/) API v2 | registered clinical studies | summaries as abstracts; conditions, keywords and interventions as subject terms; phase and status |
+| Preprints | Europe PMC's preprint index | bioRxiv, medRxiv, Research Square, SSRN, Preprints.org and more | the preprint server is the venue |
+| arXiv | arXiv papers in the [OpenAlex](https://openalex.org/) index | physics, mathematics, computer science, quantitative biology and finance, statistics, electrical engineering, economics | arXiv's own API refuses web pages, so this tab reads OpenAlex; `arxiv-api` is arXiv's API for servers and proxies |
+| OpenAlex | [OpenAlex](https://openalex.org/) | scholarly works in every field | abstracts from inverted indexes; an optional free key raises the small daily allowance for searches without one |
+| Crossref | [Crossref](https://www.crossref.org/) REST API | works with Crossref DOIs, from every publisher | JATS abstracts; ranks every work that matches any word, best first; an optional contact e-mail |
+| DOAJ | [DOAJ](https://doaj.org/) | articles in vetted open access journals | the first 1,000 results of a search |
+| DataCite | [DataCite](https://datacite.org/) REST API | datasets, software and other research outputs (Zenodo, Dryad, Figshare, data centres) | choose datasets, software or every kind of output |
+| INSPIRE | [INSPIRE-HEP](https://inspirehep.net/) | high-energy physics, astrophysics, cosmology, gravitation, nuclear physics | arXiv links, collaborations, citation counts |
+| Wikipedia | [Wikipedia](https://www.wikipedia.org/), any of eight languages | a general search: page titles and the text around each match | topics labelled in the edition's language |
+
+Google's Custom Search JSON API, the usual way to put Google results in a
+program, is closed to new customers and due to shut down on 1 January 2027,
+so Wikipedia is the open general search here. A web search API that needs a
+secret key belongs behind a small proxy of your own, which a source can then
+call; see [Plug in your own search](#plug-in-your-own-search).
+
 ## The search page
 
-- **Search** takes full PubMed syntax: field tags, Boolean operators, MeSH
-  terms. You choose how many records to cluster (100 to 2,000), the order
-  (best match or newest) and the algorithm.
-- **Fetching**: PMIDs come from ESearch, then records from EFetch in batches
-  of 200, within NCBI's rate limit. A progress bar shows each stage. When a
-  query finds nothing, the page offers NCBI's spelling suggestion.
-- **Clustering** uses titles and abstracts, plus MeSH headings and author
-  keywords if you turn them on. It runs in a Web Worker, so the page stays
-  responsive.
+- **Sources**: a tab for each source above the search box. Switching tabs
+  with a query on the page runs the same query on the new source, so you can
+  compare what different indexes hold. Each source keeps its own filters.
+- **Search** takes the source's own syntax: PubMed's field tags, Europe
+  PMC's `TITLE:`, DOAJ's and DataCite's Elasticsearch syntax, INSPIRE's
+  `t` and `a`, Wikipedia's CirrusSearch. You choose how many records to
+  cluster (100 to 2,000, or the source's maximum), the order (the source's
+  own: best match, newest, most cited) and the algorithm.
+- **Fetching**: records come in pages within each API's rate limit, with a
+  progress bar. When a PubMed or Wikipedia query finds nothing, the page
+  offers their spelling suggestion.
+- **Clustering** uses titles and abstracts (a trial's summary, a Wikipedia
+  snippet), plus subject terms if you turn them on: MeSH headings, keywords,
+  Crossref and DataCite subjects, a trial's conditions and interventions. It
+  runs in a Web Worker, so the page stays responsive. Wikipedia searches in
+  German, French, Spanish, Italian, Portuguese, Dutch or Russian are
+  clustered and labelled in that language.
 - **Maps**: four ways to see the topics, all drawn in your browser and
   switchable at any time. The map spans the full width of the page and is as
   tall as the screen allows; a button shows it on the whole screen.
@@ -99,35 +142,70 @@ pages, so the page uses system fonts there.
   button, a click between the bubbles or on the centre of the radial map, the
   Escape key or the browser's back button. A second background worker
   clusters the topics you are likely to open next, so most zooms are instant.
-- **Results**: the records of the topic you are in. Each record has an
-  NLM-style citation, the words of the topic's label highlighted in context,
-  structured abstract sections, MeSH terms, links to PubMed, PMC and the
-  DOI, and flags for retractions and notable publication types.
+- **Results**: the records of the topic you are in, each with a citation
+  (authors, journal, server, repository or sponsor, date), the words of the
+  topic's label highlighted in context, structured abstract sections,
+  subject terms, links to the record in its source and to PubMed, PMC, arXiv
+  or the DOI, and flags for retractions, preprints, reviews, trial phases and
+  statuses.
 - **Export** the records of the topic you are in as RIS (Zotero, EndNote,
   Mendeley), BibTeX or CSV. The CSV lists each record's subtopics. JSON
-  saves the whole result: the query, the records and every level of topics
-  explored so far. You can also copy the PMIDs, or open the records in
-  PubMed.
+  saves the whole result: the source, the query, the records and every level
+  of topics explored so far. You can also copy the records' identifiers
+  (PMIDs, DOIs, arXiv IDs, NCT numbers), or open the records that have PMIDs
+  in PubMed.
 - **Settings**:
-  - search filters: years, has abstract, English, humans, free full text,
-    reviews, clinical trials
-  - text options: MeSH and keywords, a filter for scientific boilerplate, your
+  - search filters of the source you are on: years, abstracts only, open
+    access, peer-reviewed only, study type and status, resource types,
+    PubMed's language, species, free full text, reviews and trials, the
+    Wikipedia language
+  - text options: subject terms, a filter for scientific boilerplate, your
     own stop words and stop labels (with `*` wildcards), label style
   - every algorithm parameter
-  - NCBI API key, contact e-mail and proxy address
+  - keys and access: an NCBI API key, contact e-mail and proxy address, an
+    OpenAlex API key, a contact e-mail for Crossref
   - theme: light, dark or system
 
-  Settings are kept in this browser only.
-- **Sharing**: the address bar holds the query, its options and filters, the
-  map style and the topic you zoomed into (`#q=…&a=…&v=…&p=…`), so a view can
-  be bookmarked or sent to someone, and finds the same records anywhere.
-- **Keyboard**: `/` jumps to the search box. On the map, the arrow keys move
-  between topics, Enter zooms in and Escape zooms out; a screen reader hears
-  each topic's name and size.
+  Settings are kept in this browser only. A key is sent only to the service
+  it belongs to.
+- **Sharing**: the address bar holds the source, the query, its options and
+  filters, the map style and the topic you zoomed into
+  (`#s=…&q=…&a=…&v=…&p=…`), so a view can be bookmarked or sent to someone,
+  and finds the same records anywhere. `#s=arxiv` alone opens a source,
+  ready for a search.
+- **Keyboard**: `/` jumps to the search box; the arrow keys move along the
+  source tabs. On the map, the arrow keys move between topics, Enter zooms
+  in and Escape zooms out; a screen reader hears each topic's name and size.
+
+## What it is for
+
+Anything that returns more records than anyone can read in order:
+
+- **Literature reviews and scoping**: what a field is made of before you
+  read it, and the corners a query reaches that you did not mean.
+- **Preprint watch**: the newest preprints on a subject, grouped, on the
+  Preprints or arXiv tab sorted by date.
+- **Trial landscapes**: what is being tested for a condition, by whom and how
+  far along, on the Trials tab.
+- **Dataset and software discovery**: the data and code deposited on a
+  subject, on the DataCite tab.
+- **Physics literature** on INSPIRE, and everything else on OpenAlex,
+  Crossref and DOAJ.
+- **General knowledge**: the meanings and neighbours of a term, on
+  Wikipedia.
+
+The engine itself knows nothing about science. Give `cluster()` any text
+records and it finds their topics: support tickets, survey answers,
+interview notes, patents, news, product reviews, internal documents, the
+results of any search engine you can call.
+
+[GL1X](https://gl1x.com), the explorer of the GenesisL1 blockchain, uses
+Broccoli for its [PubMed search](https://gl1x.com/bio/pubmed), where every
+molecular structure links to its literature.
 
 ## Using the library
 
-### As a script
+### Cluster your own records
 
 ```html
 <script src="dist/broccoli.js"></script>
@@ -145,17 +223,80 @@ pages, so the page uses system fonts there.
 From a CDN, straight from this repository's tags:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.3.0/dist/broccoli.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.4.0/dist/broccoli.js"></script>
 ```
 
 jsDelivr also serves a minified copy if you ask for `broccoli.min.js`.
 
-### As an ES module
+### Search a source, then cluster
 
 ```js
-import * as Broccoli from './dist/broccoli.mjs';   // or './src/index.js', the unbundled modules
-const { cluster, PubMedClient } = Broccoli;
+const res = await Broccoli.searchSource('europepmc', 'tau propagation', {
+  limit: 300,                       // records to fetch
+  sort: 'relevance',                // the source's own: see Broccoli.getSource('europepmc').sorts
+  from: 2018, to: 2026,             // years, where the source has them
+  filters: { open: true },          // the source's filters: see .filters
+  onProgress: (done, total) => console.log(done, '/', total),
+});
+const docs = Broccoli.toDocuments(res.records, { includeMesh: true, includeKeywords: true });
+const topics = Broccoli.cluster(docs, {
+  preset: 'abstracts', queryHint: res.query, fields: ['title', 'abstract', 'terms'],
+});
 ```
+
+`Broccoli.listSources()` lists the sources with everything a search form
+needs: names, descriptions, sorts, filters, settings and example queries.
+Settings such as API keys go in `settings`:
+`searchSource('openalex', q, { settings: { apiKey } })`.
+
+### Plug in your own search
+
+A source is an object with an id, a name and a function that fetches one
+page of results. Records can be partial: Broccoli fills in the rest.
+
+```js
+Broccoli.registerSource({
+  id: 'my-index',
+  name: 'My index',
+  pageSize: 100,                                   // the most the API returns at once
+  sorts: [{ id: 'relevance', label: 'Best match' }, { id: 'date', label: 'Newest' }],
+  filters: [{ id: 'reviewed', label: 'Reviewed only', default: false }],
+  async fetchPage(req, page) {                     // page = { page, size, offset, cursor }
+    const url = Broccoli.buildUrl('https://search.example.org/api', {
+      q: req.query, size: page.size, from: page.offset,
+      sort: req.sort === 'date' ? 'newest' : undefined,
+      reviewed: req.filters.reviewed ? 1 : undefined,
+    });
+    const json = await req.request.json(url, { signal: req.signal });   // rate-limited, retried
+    return {
+      total: json.total,
+      records: json.items.map((it) => ({
+        id: it.id, title: it.title, abstract: it.summary, url: it.link,
+        authors: it.authors,                       // ['Ada Lovelace', …] or { lastName, foreName }
+        year: it.year, doi: it.doi, journal: { title: it.venue }, keywords: it.tags,
+      })),
+      // cursor: json.next   ← for cursor paging; null when there are no more pages
+    };
+  },
+});
+```
+
+Registered before `app/app.js` loads, a source gets its own tab on the
+search page. For an API with nothing unusual about it, `jsonSource` writes
+`fetchPage` for you:
+
+```js
+Broccoli.registerSource(Broccoli.jsonSource({
+  id: 'my-index', name: 'My index',
+  url: 'https://search.example.org/api?q={query}&size={size}&from={offset}&key={settings.apiKey}',
+  results: 'items', total: 'total',            // dotted paths into the answer
+  fields: { id: 'id', title: 'title', abstract: 'summary', url: 'link', year: 'year', authors: 'authors', venue: 'journal' },
+}));
+```
+
+For APIs that need several steps, write `search(req)` in place of
+`fetchPage` and return all the records at once (the PubMed source does this:
+ESearch, then EFetch).
 
 ### In a Web Worker
 
@@ -172,24 +313,12 @@ The single-file builds start their worker from their own source, so no extra
 file is needed and it works on `file://` pages. With the modules in `src/`,
 pass `{ workerUrl: 'src/worker-entry.js', workerType: 'module' }`.
 
-### With PubMed
+### As an ES module
 
 ```js
-const pubmed = new Broccoli.PubMedClient({ tool: 'my-app', email: 'me@example.org' /*, apiKey */ });
-const query = 'crispr off-target';
-const search = await pubmed.search(query, { retmax: 500, sort: 'pub_date', mindate: '2020' });
-const articles = await pubmed.fetchArticles(search.ids, {
-  onProgress: (done, total) => console.log(done, '/', total),
-});
-const result = Broccoli.cluster(Broccoli.toDocuments(articles, { includeMesh: true }), {
-  preset: 'abstracts',
-  queryHint: query,
-  fields: ['title', 'abstract', 'terms'],
-});
+import * as Broccoli from './dist/broccoli.mjs';   // or './src/index.js', the unbundled modules
+const { cluster, searchSource } = Broccoli;
 ```
-
-`Broccoli.searchPubMed(query, options)` does the search, the fetch and the
-conversion in one call and returns `{ search, articles, documents }`.
 
 ### The maps on your own page
 
@@ -257,7 +386,7 @@ as is:
   stats: { … }, timings: { preprocessing: { … }, factorization: 41, total: 380 },
   parameters: { … },               // the parameters that were used
   warnings: [ … ],                 // unknown parameters, clamped values
-  version: '1.3.0',
+  version: '1.4.0',
 }
 ```
 
@@ -266,17 +395,85 @@ Bisecting k-means puts each document in exactly one cluster. Randomised steps
 draw from a seeded generator, so the same documents with the same options
 always give the same clusters.
 
+### Search sources
+
+- `searchSource(source, query, options)` runs a search on a source (its id,
+  or a definition) and returns `{ source, name, query, total, records,
+  queryTranslation, suggestion, warnings, language, requests, urls }`.
+  Options: `limit`, `sort`, `filters`, `from`, `to`, `settings`, `signal`,
+  `onProgress(done, total)`, `fetch`, `timeout`, `maxRetries`, and
+  `requestsPerSecond` to replace the source's own limit (behind a proxy with
+  limits of its own).
+- `registerSource(definition)`, `unregisterSource(id)`, `getSource(id)`,
+  `listSources()`, and `defineSource(definition)`, which checks a definition
+  and fills in its defaults without listing it.
+- `jsonSource(config)`: a source from an address template and field paths.
+- `BUILTIN_SOURCES` and each source on its own: `pubmedSource`,
+  `europePmcSource`, `clinicalTrialsSource`, `preprintsSource`,
+  `arxivSource`, `openAlexSource`, `crossrefSource`, `doajSource`,
+  `dataciteSource`, `inspireSource`, `wikipediaSource`, `arxivApiSource`,
+  with the functions that read their records (`europePmcRecord`,
+  `openAlexRecord`, `crossrefRecord`, `trialRecord`, …) for use elsewhere.
+- Helpers for writing sources: `createRequester()` (rate limit, retries,
+  timeout, cancellation), `buildUrl()`, `makeRecord()`, `markupToText()`,
+  `markupToSafeHtml()`, `markupSections()` (HTML and JATS abstracts into
+  labelled sections), `decodeHtmlEntities()`, `parseDisplayName()`,
+  `parseInvertedName()`, `nameFromParts()`, `parseIsoDate()`, `makeDate()`,
+  `normalizeDoi()`, `standardLinks()`.
+
+A source definition holds:
+
+| Field | Meaning |
+|---|---|
+| `id`, `name` | required: lower-case letters, digits and hyphens; a display name |
+| `fetchPage(req, page)` or `search(req)` | required: one page of records, or the whole search |
+| `shortName`, `description`, `group`, `homepage`, `docs`, `terms` | for search forms |
+| `sorts`, `filters`, `settings` | `[{ id, label }]`; filters take `default`, settings a `type` (`secret`, `email`, `url`, `text`, `select`) |
+| `years` | `true` when `from` and `to` mean something to it |
+| `pageSize`, `maxLimit`, `defaultLimit` | the most records a request, a search, and the default |
+| `rateLimit` | requests a second (or a function of the settings); `service` shares one limit between sources that call the same API |
+| `examples`, `placeholder`, `syntax`, `idLabel`, `keywordsLabel` | for the search page |
+| `browser` | `false` when the API refuses requests from web pages |
+
+`req` holds `query`, `limit`, `sort`, `filters`, `from`, `to`, `settings`,
+`signal`, `progress(done, total)` and `request`, whose `json(url)` and
+`text(url)` share the source's rate limit and retry on HTTP 429 and 5xx.
+Errors are `SourceError`s with a `kind`: `network` (unreachable, or an API
+that refuses web pages), `timeout`, `rate-limit`, `http`, `parse`, `query`,
+`quota` or `config`.
+
+Every source returns the same record:
+
+```js
+{
+  source, id, type,                 // type: article, review, preprint, book, thesis, report,
+                                    //       dataset, software, trial, page or other
+  title, titleHtml, abstract, abstractSections: [{ label, text, html }],
+  authors: [{ lastName, foreName, initials, collective, orcid }], authorString,
+  journal: { title, isoAbbreviation, issn, volume, issue, pages }, publisher,
+  year, pubDate: { year, month, day, text },
+  doi, pmid, pmcid, arxiv, url, links: [{ label, text, url }],
+  keywords, mesh: [{ descriptor, major, qualifiers }], publicationTypes, tags,
+  languages, openAccess, citedBy, extra,
+}
+```
+
+`toDocuments(records, { includeMesh, includeKeywords })` turns records into
+documents for `cluster()`, and the exports take them as they are.
+
 ### Everything else
 
 - **Engine**: `listAlgorithms()` (names, defaults and parameter descriptors,
   enough to build a settings form), `getAlgorithm()`, `resolveParameters()`,
   `PRESETS`, `VERSION`, `createClusterer()`.
-- **PubMed**: `PubMedClient`, `searchPubMed()`, `EutilsError`, `toDocuments()`,
-  `parsePubmedXml()`, `parseSearchXml()`, `parseSpellXml()`, `formatAuthors()`,
-  `uninvertMesh()` ("Diabetes Mellitus, Type 2" becomes "Type 2 Diabetes
-  Mellitus"), `parseXml()`.
-- **Export**: `toRis(articles)`, `toBibtex(articles)`,
-  `toCsv(articles, clusters)`, `toJson(result, articles)`.
+- **PubMed**: `PubMedClient`, `searchPubMed()`, `EutilsError`,
+  `parsePubmedXml()`, `parseSearchXml()`, `parseSpellXml()`,
+  `formatAuthors()`, `uninvertMesh()` ("Diabetes Mellitus, Type 2" becomes
+  "Type 2 Diabetes Mellitus"), `parseXml()`, `pubmedTerm()`,
+  `notableTypes()`.
+- **Export**: `toRis(records)`, `toBibtex(records)`,
+  `toCsv(records, clusters)`, `toJson(result, records)`, for records from any
+  source.
 - **Text**: `tokenize()`, `tokenizeToArray()`, `highlightHtml(text, labels, language)`,
   `highlightSpans()`, `escapeHtml()`, `registerLanguage()`, `getLanguage()`,
   `listLanguages()`, `isBuiltInLanguage()`, `wordStemmer()`, and the stemmers `stemEnglish`,
@@ -289,6 +486,8 @@ always give the same clusters.
   `createRandom()`.
 
 ### `PubMedClient`
+
+The PubMed source is built on it; use it directly for PubMed's own options.
 
 ```js
 new PubMedClient({
@@ -310,13 +509,9 @@ All of these queue requests to stay within the rate limit, which is shared by
 every call on the same client. They retry on HTTP 429 and 5xx with backoff,
 and stop when the `AbortSignal` you pass is aborted.
 
-An article has these fields: `pmid`, `title`, `titleHtml`, `abstract`,
-`abstractSections` (`[{ label, category, text, html }]`), `authors`,
-`authorString`, `journal` (`{ title, isoAbbreviation, issn, volume, issue, pages }`),
-`year`, `pubDate`, `articleDate`, `entryDate`, `doi`, `pmcid`, `mesh`
-(`[{ descriptor, ui, major, qualifiers }]`), `keywords`, `publicationTypes`,
-`languages`, `chemicals`, `status` and `url`. Book chapters from PubMed have
-the same fields.
+An article has the record fields above (without `source` and `id`, which the
+PubMed source adds) plus `articleDate`, `entryDate`, `chemicals`, `status`
+and `pii`. Book chapters from PubMed have the same fields.
 
 ## Algorithms
 
@@ -405,22 +600,29 @@ A language you register exists only on the page that registered it, so
 `createClusterer()` runs jobs in that language on the page's own thread
 instead of in its worker.
 
-## PubMed, NCBI and your API key
+## Keys, limits and good manners
 
-The E-utilities send CORS headers, so the browser can call NCBI directly and
-no server of yours is involved. NCBI asks applications to:
+Each source keeps to its API's published limits on its own; searches from
+one page share them.
 
-- stay under 3 requests a second, or 10 with an API key. The client does
-  this for you.
-- identify themselves with `tool` and a contact `email`.
-- get a free [API key](https://www.ncbi.nlm.nih.gov/account/settings/) for
-  heavier use.
+- **PubMed**: NCBI asks for no more than 3 requests a second, or 10 with a
+  free [API key](https://www.ncbi.nlm.nih.gov/account/settings/), and for a
+  `tool` name and a contact `email`. See NCBI's
+  [usage guidelines](https://www.ncbi.nlm.nih.gov/books/NBK25497/).
+- **OpenAlex** gives searches without a key a small daily allowance; a free
+  key from openalex.org raises it.
+- **Crossref** serves requests that give a contact e-mail (`mailto`) from a
+  more reliable pool, and asks for one request a second from the public
+  pool, which Broccoli keeps to.
+- **INSPIRE** allows 15 requests in 5 seconds; Broccoli makes 2 a second.
+- **DOAJ** serves the first 1,000 results of a search.
+- **arXiv's API** asks for one request every three seconds and does not
+  answer web pages; the `arxiv-api` source keeps to the first and needs a
+  proxy (`settings.baseUrl`) for the second.
 
-See NCBI's [usage guidelines](https://www.ncbi.nlm.nih.gov/books/NBK25497/).
-
-To give every visitor the higher limit without asking for their key, deploy
-`server/eutils-proxy.php` (PHP 7.4 or newer) with your key in it, then set
-the page's "E-utilities address" setting, or `baseUrl` in code, to
+To give every visitor the higher NCBI limit without asking for their key,
+deploy `server/eutils-proxy.php` (PHP 7.4 or newer) with your key in it, then
+set the page's "E-utilities address" setting, or `baseUrl` in code, to
 `https://your.server/eutils-proxy.php?u=`. The proxy:
 
 - forwards only the E-utilities and databases on its allow list.
@@ -452,21 +654,23 @@ The project needs no Node.js or npm. Python 3 is used only for tooling.
   python3 -m venv .venv && . .venv/bin/activate
   pip install playwright && python -m playwright install chromium
   ```
-- The tests use a fake `fetch` and hand-written E-utilities responses, so they
-  never touch the network.
+- The tests use a fake `fetch` and hand-written answers in each API's format,
+  so they never touch the network.
 - GitHub Actions runs the build check and the tests on every push
   (`.github/workflows/tests.yml`).
 
-The page itself is `app/app.js` (search, topic tree, panels), `app/views.js`
-(the canvas maps: the organic treemap, circle packing, the radial partition,
-morphing and smooth zoom), `app/florets.js` (the florets map, SVG) and
-`app/colors.js` (the palette).
+The page itself is `app/app.js` (sources, search, topic tree, panels),
+`app/views.js` (the canvas maps: the organic treemap, circle packing, the
+radial partition, morphing and smooth zoom), `app/florets.js` (the florets
+map, SVG) and `app/colors.js` (the palette).
 
-Code layout of the library: `src/text` (tokenizer, stemmers, stop lists, highlighting),
-`src/preprocessing` (words, stems, phrases, label candidates),
-`src/matrix` (dense and sparse matrices, eigensolver, SVD, NMF, k-means),
-`src/algorithms`, `src/engine` (parameters, presets, worker) and
-`src/pubmed` (client, XML parser, records, exports).
+Code layout of the library: `src/text` (tokenizer, stemmers, stop lists,
+highlighting), `src/preprocessing` (words, stems, phrases, label
+candidates), `src/matrix` (dense and sparse matrices, eigensolver, SVD, NMF,
+k-means), `src/algorithms`, `src/engine` (parameters, presets, worker),
+`src/sources` (the source interface, requests, records, markup and the
+built-in sources) and `src/pubmed` (E-utilities client, XML parser, PubMed
+records, exports).
 
 ## Browser support
 
@@ -477,19 +681,13 @@ run in Chromium, at phone, tablet and desktop sizes from 320 pixels wide.
 ## Privacy
 
 Clustering happens on your own device. The page sends nothing anywhere except
-your queries, which go to NCBI, or to your proxy if you set one. There is no
-analytics and there are no cookies. Settings, including an API key if you
-enter one, are kept in this browser's local storage.
-
-## Where Broccoli runs
-
-[GL1X](https://gl1x.com), the explorer of the GenesisL1 blockchain, uses
-Broccoli for its [PubMed search](https://gl1x.com/bio/pubmed), where every
-molecular structure links to its literature. More about the project:
-[genesisl1.com/broccoli](https://genesisl1.com/broccoli/).
+your queries, which go to the source you search (or to your proxy, if you set
+one). There is no analytics and there are no cookies. Settings, including
+API keys if you enter them, are kept in this browser's local storage, and a
+key goes only to the service it belongs to.
 
 ## License
 
 MIT, © 2026 Decentralized Science Labs LLC. See [LICENSE](LICENSE), and
 [NOTICE.md](NOTICE.md) for credits to the papers the algorithms come from,
-JAMA, Snowball, the fonts and NCBI.
+JAMA, Snowball, the fonts and the data sources.

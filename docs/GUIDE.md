@@ -4,14 +4,17 @@
 **Broccoli** is a JavaScript library by Decentralized Science Labs, released
 under the MIT License. It groups search results into labelled topics on the
 reader's own device, with Lingo, Suffix Tree Clustering (STC) or bisecting
-k-means, and draws the topics as zoomable maps. It also contains a client for
-NCBI's E-utilities, a reader for PubMed records and exports for reference
-managers, and a PubMed search page built on all of it. This guide describes
-version 1.3.0.
+k-means, and draws the topics as zoomable maps. Search sources bring the
+records in from any search API: PubMed, Europe PMC, ClinicalTrials.gov,
+preprints, arXiv, OpenAlex, Crossref, DOAJ, DataCite, INSPIRE-HEP and
+Wikipedia are built in. It also contains exports for reference managers and
+a search page with a tab for each source. This guide describes version
+1.4.0.
 
-It explains how Broccoli reads text, how each algorithm finds and names
-topics, how the maps are laid out and coloured, how the search page puts the
-parts together, and where the limits lie. Every number is the code's own
+It explains how the sources fetch and shape records, how Broccoli reads
+text, how each algorithm finds and names topics, how the maps are laid out
+and coloured, how the search page puts the parts together, and where the
+limits lie. Every number is the code's own
 default or a value the search page sets; where the two differ, both are
 given.
 
@@ -21,16 +24,15 @@ Broccoli clusters **result sets**: the hundreds or few thousands of records a
 search returns. It finds topics in the words those records share, as repeated
 phrases and as terms that occur together. The clustering runs in the
 browser, in a Web Worker when one can be started, and needs no server: the
-requests go from the browser to NCBI, or to a proxy you run. Its randomised
-steps draw from a
-seeded generator, so the same records with the same settings always give the
+requests go from the browser to the source's API, or to a proxy you run. Its
+randomised steps draw from a seeded generator, so the same records with the same settings always give the
 same topics, and the same topics the same map.
 
 | Broccoli is | Broccoli is not |
 |---|---|
 | a lexical clusterer: topics come from shared words and phrases | a semantic model: there are no embeddings and no language model, so synonyms that share no word stay apart |
 | a labeller: every topic is named with words from its records | a summariser: it writes no text of its own |
-| a PubMed client that calls NCBI's E-utilities from the browser | a search engine: it indexes nothing and ranks no records; PubMed chooses and orders them |
+| a set of search sources that call each API from the browser | a search engine: it indexes nothing and ranks no records; the source chooses and orders them |
 
 Lingo and STC may place a record in several topics; bisecting k-means places
 every record it can in exactly one. Broccoli holds records only in the page's
@@ -42,25 +44,26 @@ Each script sets one global name.
 
 | File | Size | Global | Role |
 |---|---|---|---|
-| `dist/broccoli.js` | 299 KB | `Broccoli` | the core: text processing, the three algorithms, the clustering engine and its worker, label highlighting, the PubMed client, record reader and exports (`dist/broccoli.mjs` is the same as an ES module) |
-| `app/views.js` | 96 KB | `BroccoliViews` | the canvas maps (organic treemap, bubbles, radial) with their layouts, zoom, labels and keyboard |
+| `dist/broccoli.js` | 415 KB | `Broccoli` | the core: text processing, the three algorithms, the clustering engine and its worker, label highlighting, the search sources and their records, the PubMed client and exports (`dist/broccoli.mjs` is the same as an ES module) |
+| `app/views.js` | 94 KB | `BroccoliViews` | the canvas maps (organic treemap, bubbles, radial) with their layouts, zoom, labels and keyboard |
 | `app/florets.js` | 11 KB | `BroccoliFlorets` | the florets map, in SVG |
 | `app/colors.js` | 10 KB | `BroccoliColors` | the palette, its tiers in OKLCH, contrast, the theme |
-| `app/app.js` | 68 KB | `BroccoliApp` | the search page: settings, the topic tree, the address, records and exports |
+| `app/app.js` | 82 KB | `BroccoliApp` | the search page: the source tabs, settings, the topic tree, the address, records and exports |
 
 `dist/broccoli.js` is built from the modules in `src/` by `tools/build.py`,
 and keeps them as named sections for text, preprocessing, utilities,
-matrices, the algorithms, the engine and PubMed.
+matrices, the algorithms, the engine, the sources and PubMed.
 
 ## From records to a map
 
-1. **Search.** The page asks PubMed for the PMIDs of a query (ESearch) and
-   fetches the records in batches of 200 by POST (EFetch), from the browser
-   or through a proxy.
-2. **Documents.** Each record becomes an article (title, abstract, authors,
-   journal, identifiers, MeSH headings, keywords and more), and each article a
-   document with the fields `title`, `abstract` and, with *Use MeSH headings
-   and author keywords*, `terms`.
+1. **Search.** The page asks the source you picked for the records of a
+   query, page by page, from the browser or through a proxy (PubMed: the
+   PMIDs from ESearch, then the records in batches of 200 by POST from
+   EFetch).
+2. **Documents.** Each answer becomes a record of the same shape whatever the
+   source (title, abstract, authors, venue, identifiers, subject terms and
+   more), and each record a document with the fields `title`, `abstract` and,
+   with *Use subject terms too*, `terms`.
 3. **Clustering.** `cluster(documents, options)` runs in a Web Worker: it
    resolves the parameters, reads the text, runs the algorithm and adds a
    group for the records no topic holds.
@@ -81,13 +84,66 @@ matrices, the algorithms, the engine and PubMed.
 up to three for STC and the top terms for k-means; `merged` lists the labels
 of Lingo topics folded into this one.
 
+## Search sources
+
+A source is a plain object that describes a search API and fetches from it.
+`searchSource(source, query, options)` runs it: it resolves the sort, the
+filters (each source's defaults where the caller says nothing) and the years,
+asks the source for pages until it has the records wanted, the total is
+reached, a page comes back short or empty, or a cursor says there is no more,
+then completes every record, removes repeats by id and stops at the limit.
+
+**Requests.** Each source has one queue, shared by every search on the page,
+that lets one request through at a time and spaces them by the source's rate
+(sources that call one service share its queue: Europe PMC and Preprints,
+OpenAlex and arXiv). A request is a CORS "simple" GET with no custom headers,
+so browsers send it without a preflight. HTTP 429 and server errors are
+retried up to three times after 0.7, 1.4 and 2.8 s (or as `Retry-After`
+asks, up to 30 s); a network error, which is also how a browser reports an
+API that refuses web pages, is tried once more; each request times out after
+30 s. Failures are `SourceError`s whose `kind` says what happened, so a page
+can say what to do about it.
+
+**Records.** Every source returns the same record (see the README for the
+fields). What goes where:
+
+| Source | Title and abstract | Subject terms (`terms`) | Venue | Paging |
+|---|---|---|---|---|
+| PubMed | article title; abstract with its labelled sections | MeSH headings (check tags left out) and author keywords | journal | ESearch, then EFetch in batches of 200 |
+| Europe PMC, Preprints | title; HTML abstract, `<h4>` headings as section labels | MeSH and keywords | journal, or the preprint server | cursor, 250 a page |
+| ClinicalTrials.gov | brief title; brief summary | conditions, keywords and interventions | lead sponsor | page token, 200 a page |
+| OpenAlex, arXiv | title; abstract rebuilt from its inverted index | OpenAlex keywords and MeSH | source (journal, repository, arXiv) | cursor, 100 a page |
+| Crossref | title; JATS abstract, `<jats:title>` headings as labels | subjects | journal | cursor, 200 a page |
+| DOAJ | title; abstract | keywords | journal | page number, 100 a page, 1,000 at most |
+| DataCite | main title; the abstract description, or the first | subjects (field-of-science prefixes removed) | container, or publisher | page number, 200 a page |
+| INSPIRE-HEP | title; the arXiv abstract, or the first | INSPIRE and author keywords (PACS codes left out) | journal, or arXiv | page number, 200 a page |
+| Wikipedia | page title; the search snippet | none | none | offset, 500 a page |
+
+Markup is read by one small reader: HTML and JATS tags it knows become text,
+safe inline HTML (only `<i>`, `<b>`, `<u>`, `<sup>`, `<sub>` survive) and
+labelled sections; a heading named "Abstract" is dropped; entities are
+decoded; and a "tag" it does not know, as in `IL-6 <IL-8 and TNF>`, stays
+text. When a record is completed, its HTML goes through the same filter once
+more and its links are kept only if they are http or https addresses, so a
+record from any source, your own included, cannot carry a script into a
+page.
+
+**Your own.** A source needs an id, a name and `fetchPage(req, page)` or
+`search(req)`. `page` holds the page number, the size, the offset and the
+cursor the previous page returned; return `{ records, total, cursor }`, with
+`cursor: null` when there are no more pages, or no cursor for APIs paged by
+number or offset. `jsonSource()` builds `fetchPage` from an address template
+(`{query}`, `{size}`, `{offset}`, `{page}`, `{cursor}`, `{sort}`, `{from}`,
+`{to}`, `{settings.name}`) and dotted paths to the results, the total, the
+next cursor and each field.
+
 ## Reading the text
 
 ### Documents and fields
 
 A document is a string or an object of text fields, at most 31 of them (each
 word records its fields as bits of a 32-bit mask). The search page names
-`title` and `abstract`, and `terms` with MeSH; the title field matters to the matrix
+`title` and `abstract`, and `terms` with subject terms; the title field matters to the matrix
 models, which weight a word up in a record whose title contains it. In
 `terms`, MeSH check tags (Humans, Male, Female, the age groups and the like)
 are left out, a heading inverted once is put in natural order ("Diabetes
@@ -146,8 +202,9 @@ words that carry no topic in an abstract (aim, findings, results,
 significant, associated and the like). *Extra stop words* are globs, one a
 line: `covid*` catches covid, covid-19 and covid19.
 
-The query is a **hint**, not a filter: stripped of PubMed's syntax (field
-tags, AND, OR, NOT, quotes, parentheses, wildcards), its words mark every word
+The query is a **hint**, not a filter: stripped of search syntax (field tags
+in brackets as in PubMed, `field:` prefixes as in Europe PMC, DOAJ and
+DataCite, AND, OR, NOT, quotes, parentheses, wildcards), its words mark every word
 of the records with the same stem or spelling. A label made only of query
 words is dropped: a search for lysozyme gives no topic "Lysozyme".
 
@@ -720,10 +777,10 @@ Broccoli has no event bus; its parts talk through callbacks:
 
 | Part | Callback | Called |
 |---|---|---|
-| clusterer | `onProgress(stage, fraction)` | as a stage begins: `tokenize`, `phrases`, `labels`, `matrix`, `factorization`, `baseClusters`, `merge`, `clustering` (the fraction is always 0 in 1.3.0); the page shows a sentence for each |
+| clusterer | `onProgress(stage, fraction)` | as a stage begins: `tokenize`, `phrases`, `labels`, `matrix`, `factorization`, `baseClusters`, `merge`, `clustering` (the fraction is always 0); the page shows a sentence for each |
 | canvas maps | `onFocus(node)`, `onUp()` | a topic was chosen; zoom out was asked for |
 | | `onRecord(doc, node)` | a record was chosen: the page opens its abstract in the list and scrolls to it |
-| | `recordInfo(doc)`, `height(width)` | a record's title, journal and year; the map's height for a width |
+| | `recordInfo(doc)`, `height(width)` | a record's title, venue and year; the map's height for a width |
 | florets | `onSelect(id)`, `colorOf(cluster)` | a floret was chosen; a floret's colours |
 
 `BroccoliViews.create(stage, options)` returns an object that takes
@@ -747,21 +804,26 @@ window resizes and changes of the colour scheme.
 ### Settings and the address
 
 The page keeps its settings in the browser (`localStorage`, under
-`broccoli.settings.v1`): the number of records, the order, the algorithm, the
-map style, the search filters, the text options, the parameters, the NCBI API
-key, contact e-mail and E-utilities address, and the theme. Nothing else is
-stored. The address's fragment holds the search and
-the choices that decide the records and topics, so a link opens the same
-view anywhere:
+`broccoli.settings.v1`): the source, the number of records, the order, the
+algorithm, the map style, each source's filters, the text options, the
+parameters, the keys and addresses of the sources that take them (an NCBI
+API key, contact e-mail and E-utilities address, an OpenAlex API key, a
+contact e-mail for Crossref, the Wikipedia language), and the theme. Filters
+and NCBI settings saved by 1.3 and earlier are read into the new places.
+Nothing else is stored. The address's fragment holds the search and the
+choices that decide the records and topics, so a link opens the same view
+anywhere:
 
 | Key | Holds | Left out when |
 |---|---|---|
-| `q` | the query | never |
-| `n` | records, 100 to 2,000 | 200 |
-| `sort` | `pub_date` for newest first | best match |
+| `s` | the source's id | PubMed |
+| `q` | the query | never (`#s=…` alone opens a source) |
+| `n` | records, 100 to 2,000, or the source's maximum | 200 |
+| `sort` | the source's order: `date`, `cited`, `added` (`pub_date`, from older links, means `date`) | best match |
 | `a` | `stc` or `bkm` | Lingo |
-| `from`, `to` | years | not set |
-| `f` | the filters on, comma-separated, or `none` | the defaults (records with an abstract) |
+| `from`, `to` | years, for sources that have them | not set |
+| `f` | the source's filters that are on, comma-separated, or `none` | the source's defaults |
+| `lang` | the Wikipedia language | English |
 | `v` | `bubbles`, `radial` or `florets` | the treemap |
 | `p` | the labels of the path to the open topic, separated by `\|` | at the top level |
 
@@ -772,12 +834,10 @@ map style, which stays the visitor's own unless the link names one.
 
 | Limit | Value |
 |---|---|
-| records a search | 100 to 2,000; a link may ask for any number up to 2,000 |
+| records a search | 100 to 2,000 (1,000 on OpenAlex, arXiv and DOAJ); a link may ask for any number up to 2,000 |
 | fields a document | 31 |
-| ESearch | 10,000 records at most a request |
-| EFetch | batches of 200 records (500 at most) |
-| requests from the page | one every 349 ms without an API key, one every 115 ms with a key or through a proxy (NCBI allows 3 and 10 a second) |
-| retries | 4 on 429 and server errors, after 0.6, 1.2, 2.4 and 4.8 s or as `Retry-After` asks; 2 on network errors; a 45 s timeout |
+| PubMed | ESearch: 10,000 records at most a request; EFetch: batches of 200 (500 at most); one request every 349 ms without an API key, one every 115 ms with a key or through a proxy (NCBI allows 3 and 10 a second); 4 retries on 429 and server errors, after 0.6, 1.2, 2.4 and 4.8 s or as `Retry-After` asks, 2 on network errors, a 45 s timeout |
+| other sources | 5 requests a second (Europe PMC, OpenAlex, DataCite, Wikipedia), 3 (ClinicalTrials.gov), 2 (DOAJ, INSPIRE-HEP), 1 (Crossref), one every 3 s (arXiv's API); 3 retries on 429 and server errors, 1 on network errors, a 30 s timeout |
 | subtopics | six levels below the search, groups of 8 or more records |
 | drawn | 600 records a map, 400 dots a cell, 28 florets, 9 beads a bubble |
 
@@ -805,8 +865,8 @@ public-domain JAMA reference implementation (The MathWorks and NIST), derived
 from EISPACK. Its stemmers are written from the algorithm descriptions of
 Martin Porter and the Snowball project; no Snowball code or vocabulary is
 included. The stop word and stop label lists were compiled for Broccoli.
-Records come from PubMed through NCBI's E-utilities. `NOTICE.md` credits the
-papers each part is built on.
+Records come from the sources' public APIs, which `NOTICE.md` lists with
+their terms, together with the papers each part is built on.
 
 ## References
 

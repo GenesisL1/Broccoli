@@ -228,10 +228,11 @@ test('exports: RIS, BibTeX, CSV, JSON', () => {
   assert(bib.startsWith('@article{pmid39000001,') && bib.includes('pages = {1116--22}'), bib);
   const csv = D.toCsv(articles, [{ label: 'HLA', documents: [0, 2] }]);
   const lines = csv.split('\r\n');
-  assertEqual(lines[0], 'pmid,title,authors,journal,year,doi,pmcid,clusters,url');
-  assert(lines[1].startsWith('39000001,HLA class II') && lines[1].includes(',HLA,'), lines[1]);
+  assertEqual(lines[0], 'source,id,title,authors,venue,year,doi,pmid,pmcid,clusters,url');
+  assert(lines[1].startsWith('pubmed,39000001,HLA class II') && lines[1].includes(',HLA,'), lines[1]);
   const json = JSON.parse(D.toJson({ algorithm: 'lingo', clusters: [{ label: 'HLA', labels: ['HLA'], size: 2, score: 1, documents: [0, 2] }] }, articles));
   assertDeepEqual(json.clusters[0].pmids, ['39000001', '39000003']);
+  assertDeepEqual(json.clusters[0].ids, ['39000001', '39000003']);
 });
 
 test('clustering PubMed documents end to end (fixtures)', () => {

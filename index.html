@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Broccoli: PubMed search with topic clusters</title>
-<meta name="description" content="Search PubMed and read the results as a zoomable map of labelled topics and subtopics. Lingo, STC and bisecting k-means clustering run entirely in your browser.">
+<title>Broccoli: topic maps for search results</title>
+<meta name="description" content="Search PubMed, Europe PMC, preprints, arXiv, OpenAlex, Crossref, DOAJ, ClinicalTrials.gov, DataCite, INSPIRE-HEP or Wikipedia and read the results as a zoomable map of labelled topics and subtopics. Lingo, STC and bisecting k-means clustering run entirely in your browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M13.4 31.2c.9-3.2 1.1-6.2.5-9.6l-2.6-2.7 1.4-.9 2.9 2.3h.8l2.9-2.3 1.4.9-2.6 2.7c-.6 3.4-.4 6.4.5 9.6z' fill='%233f7046'/%3E%3Cg fill='%232c6a39' stroke='%23fff' stroke-width='1.4'%3E%3Ccircle cx='12.4' cy='9' r='5.6'/%3E%3Ccircle cx='19.6' cy='9' r='5.6'/%3E%3Ccircle cx='8.6' cy='14.2' r='5.1'/%3E%3Ccircle cx='23.4' cy='14.2' r='5.1'/%3E%3Ccircle cx='16' cy='14.6' r='5.4'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preload" href="app/fonts/Newsreader-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="app/fonts/AtkinsonHyperlegible-Regular.woff2" as="font" type="font/woff2" crossorigin>
@@ -24,13 +24,17 @@
       </svg>
       <span>
         <span class="brand-name">Broccoli</span>
-        <span class="brand-tag">PubMed clustering in your browser</span>
+        <span class="brand-tag">Topic maps for search results</span>
       </span>
     </a>
 
+    <nav class="sources" aria-label="Where to search">
+      <div class="source-tabs" id="source-tabs" role="tablist" aria-label="Search sources"></div>
+    </nav>
+
     <form class="search" id="search-form" role="search" autocomplete="off">
       <div class="search-field">
-        <label for="q" class="visually-hidden">Search PubMed</label>
+        <label for="q" class="visually-hidden" id="q-label">Search PubMed</label>
         <input id="q" name="q" type="search" placeholder="Search PubMed, e.g. long covid cognitive symptoms" spellcheck="false" enterkeyhint="search">
       </div>
       <button class="btn btn-primary" type="submit" id="search-button">Search</button>
@@ -71,9 +75,15 @@
 <main>
   <section class="landing" id="landing" aria-labelledby="landing-title">
     <div>
-      <h1 id="landing-title">Read a PubMed search as a map of its topics</h1>
-      <p>Search the way you would on PubMed. Broccoli fetches up to 2,000 records from NCBI and groups them into labelled topics, so you can see what a literature is made of before you read it. Click a topic to zoom in, and it splits into subtopics of its own.</p>
-      <p class="fine">Clustering runs on this page with Lingo, STC or bisecting k-means. There is no server and no account, and nothing you search is stored.</p>
+      <h1 id="landing-title">Read a search as a map of its topics</h1>
+      <p>Pick a source above and search the way you would there. Broccoli fetches up to 2,000 results and groups them into labelled topics, so you can see what a literature is made of before you read it. Click a topic to zoom in, and it splits into subtopics of its own.</p>
+      <div class="source-card" id="source-card">
+        <p class="source-kicker">Searching</p>
+        <h2 id="source-name">PubMed</h2>
+        <p id="source-about"></p>
+        <p class="fine" id="source-syntax"></p>
+      </div>
+      <p class="fine">Clustering runs on this page with Lingo, STC or bisecting k-means. Your browser asks the source's API directly: there is no server in between, no account, and nothing you search is stored.</p>
     </div>
     <figure class="landing-map">
       <svg class="florets" id="landing-florets" aria-label="Example searches"></svg>
@@ -132,7 +142,7 @@
           <span class="records-sub" id="records-sub"></span>
         </div>
         <div class="records-actions">
-          <button type="button" class="btn" id="copy-pmids">Copy PMIDs</button>
+          <button type="button" class="btn" id="copy-ids">Copy IDs</button>
           <button type="button" class="btn" id="open-pubmed">Open in PubMed</button>
           <details class="menu" id="export-menu">
             <summary class="btn">Export</summary>
@@ -159,7 +169,7 @@
 
 <footer class="colophon">
   <p><a href="https://github.com/GenesisL1/Broccoli" target="_blank" rel="noopener">Broccoli</a> is open source under the MIT License, made by Decentralized Science Labs LLC. Its Lingo, STC and bisecting k-means are written in JavaScript from the published papers, and run on this page.</p>
-  <p>Records come from <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank" rel="noopener">PubMed</a> through <a href="https://www.ncbi.nlm.nih.gov/books/NBK25501/" target="_blank" rel="noopener">NCBI E-utilities</a>.</p>
+  <p id="source-credit"></p>
 </footer>
 
 <div class="scrim" id="scrim" hidden></div>
@@ -171,22 +181,17 @@
   </div>
   <div class="drawer-body">
     <fieldset>
-      <legend>Search filters</legend>
-      <div class="row">
+      <legend id="filters-legend">Search filters</legend>
+      <div class="row" id="years-row">
         <label class="field"><span>From year</span><input type="number" id="opt-from" min="1800" max="2100" placeholder="Any"></label>
         <label class="field"><span>To year</span><input type="number" id="opt-to" min="1800" max="2100" placeholder="Any"></label>
       </div>
-      <label class="check"><input type="checkbox" id="f-abstracts"><span>Only records with an abstract<small>Records without one have only a title to cluster on.</small></span></label>
-      <label class="check"><input type="checkbox" id="f-english"><span>English only</span></label>
-      <label class="check"><input type="checkbox" id="f-humans"><span>Humans only</span></label>
-      <label class="check"><input type="checkbox" id="f-free"><span>Free full text only</span></label>
-      <label class="check"><input type="checkbox" id="f-reviews"><span>Reviews only</span></label>
-      <label class="check"><input type="checkbox" id="f-trials"><span>Clinical trials only</span></label>
+      <div id="source-filters"></div>
     </fieldset>
 
     <fieldset>
       <legend>Text</legend>
-      <label class="check"><input type="checkbox" id="opt-mesh"><span>Use MeSH headings and author keywords<small>Adds controlled vocabulary to the text that is clustered.</small></span></label>
+      <label class="check"><input type="checkbox" id="opt-mesh"><span>Use subject terms too<small>Adds the records' MeSH headings, keywords, subjects or a trial's conditions and interventions to the text that is clustered.</small></span></label>
       <label class="check"><input type="checkbox" id="opt-biomedical"><span>Ignore scientific boilerplate<small>Words like "results suggest" and labels like "Control Group".</small></span></label>
       <label class="field"><span>Extra stop words</span><textarea id="opt-stopwords" placeholder="One per line, * as a wildcard: covid*"></textarea><small>Never start or end a label with these words.</small></label>
       <label class="field"><span>Extra stop labels</span><textarea id="opt-stoplabels" placeholder="One per line, * for any words: * cohort"></textarea><small>Never use these as labels.</small></label>
@@ -207,11 +212,9 @@
     </fieldset>
 
     <fieldset>
-      <legend>NCBI access</legend>
-      <p class="hint">Without a key NCBI allows 3 requests a second; with one, 10. Both stay in this browser and are sent only to NCBI.</p>
-      <label class="field"><span>API key</span><input type="password" id="opt-apikey" autocomplete="off" spellcheck="false"><small>Free from your NCBI account settings.</small></label>
-      <label class="field"><span>Contact e-mail</span><input type="email" id="opt-email" autocomplete="email"><small>NCBI asks tools to identify a contact for heavy use.</small></label>
-      <label class="field"><span>E-utilities address</span><input type="url" id="opt-baseurl" placeholder="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/" spellcheck="false"><small>Change only to use a proxy, such as server/eutils-proxy.php from this project.</small></label>
+      <legend>Keys and access</legend>
+      <p class="hint">All optional. Each stays in this browser and is sent only to the service it belongs to.</p>
+      <div id="access"></div>
     </fieldset>
 
     <fieldset>

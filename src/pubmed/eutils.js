@@ -110,7 +110,7 @@ export class PubMedClient {
       const onAbort = () => controller && controller.abort();
       if (signal) signal.addEventListener('abort', onAbort, { once: true });
       const timer = controller ? setTimeout(() => controller.abort(), this.timeout) : null;
-      let response = null, networkError = null;
+      let response = null, networkError = null, body = null;
       try {
         this.requestCount++;
         const init = { method, signal: controller ? controller.signal : undefined };
@@ -121,6 +121,8 @@ export class PubMedClient {
         } else {
           response = await this._fetch(url + joiner + query, init);
         }
+        // The body is read under the same timeout and cancellation as the headers.
+        if (response.ok) body = await response.text();
       } catch (err) {
         networkError = err;
       } finally {
@@ -134,7 +136,7 @@ export class PubMedClient {
           throw new EutilsError('Could not reach NCBI E-utilities (' + (networkError.message || networkError) + ')', { utility, cause: networkError, network: true });
         }
       } else if (response.ok) {
-        return response.text();
+        return body;
       } else {
         const retryable = response.status === 429 || response.status >= 500;
         if (!retryable || attempt >= this.maxRetries) {

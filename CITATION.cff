@@ -1,10 +1,10 @@
 cff-version: 1.2.0
 message: "If you use Broccoli in your work, please cite it as below."
-title: "Broccoli: search results clustering and topic maps in the browser"
+title: "Broccoli: topic maps for search results, in the browser"
 type: software
 authors:
   - name: "Decentralized Science Labs LLC"
-version: "1.3.0"
+version: "1.4.0"
 license: MIT
 repository-code: "https://github.com/GenesisL1/Broccoli"
 url: "https://genesisl1.com/broccoli/"
@@ -12,13 +12,18 @@ abstract: >-
   Broccoli groups search results into labelled topics in the browser with
   Lingo, Suffix Tree Clustering or bisecting k-means, and draws them as
   zoomable maps (an organic Voronoi treemap, bubbles, a radial map and a
-  florets map). It includes a client for NCBI's E-utilities and a PubMed
-  search page that clusters up to 2,000 records with no server.
+  florets map). Search sources bring records in from any search API; PubMed,
+  Europe PMC, ClinicalTrials.gov, preprints, arXiv, OpenAlex, Crossref, DOAJ,
+  DataCite, INSPIRE-HEP and Wikipedia are built in, and a search page with a
+  tab for each clusters up to 2,000 records with no server.
 keywords:
   - search results clustering
   - Lingo
   - suffix tree clustering
   - bisecting k-means
   - PubMed
+  - OpenAlex
+  - arXiv
+  - literature search
   - Voronoi treemap
   - topic maps

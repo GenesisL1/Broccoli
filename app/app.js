@@ -1,12 +1,15 @@
 /*
- * Broccoli — PubMed search with topic clusters.
+ * Broccoli — topic maps for search results.
  * Copyright (c) 2026 Decentralized Science Labs LLC. MIT License.
  *
- * The search page: PubMed E-utilities → clustering (in a Web Worker when
- * possible) → a tree of topics you can zoom into. Zooming into a topic
- * clusters its records again, so every level has its own subtopics; a second
- * worker works ahead on the topics you are likely to open next. A plain
- * script, so the page also works when opened straight from disk.
+ * The search page: a search source (PubMed, Europe PMC, preprints, arXiv,
+ * OpenAlex, Crossref, DOAJ, ClinicalTrials.gov, DataCite, INSPIRE-HEP,
+ * Wikipedia, or any source registered with Broccoli.registerSource before
+ * this script runs) → clustering (in a Web Worker when possible) → a tree of
+ * topics you can zoom into. Zooming into a topic clusters its records again,
+ * so every level has its own subtopics; a second worker works ahead on the
+ * topics you are likely to open next. A plain script, so the page also
+ * works when opened straight from disk.
  */
 (function () {
   'use strict';
@@ -34,38 +37,33 @@
 
   /** The map style by its id (null for one this page does not have). */
   function viewName(v) { v = OLD_VIEWS[v] || v; return VIEW_NAMES[v] ? v : null; }
-  var NOTABLE_TYPES = ['Retracted Publication', 'Retraction of Publication', 'Preprint', 'Systematic Review', 'Meta-Analysis',
-    'Review', 'Randomized Controlled Trial', 'Clinical Trial', 'Case Reports', 'Practice Guideline', 'Guideline', 'Editorial', 'Comment'];
-  var EXAMPLES = [
-    ['long covid cognitive symptoms', 34],
-    ['HLA class II autoimmunity', 30],
-    ['GLP-1 receptor agonists heart failure', 28],
-    ['CRISPR off-target effects', 24],
-    ['gut microbiome depression', 22],
-    ['CAR-T cell therapy solid tumors', 20],
-    ['antimicrobial resistance wastewater', 17],
-    ['protein thermostability prediction', 15],
-    ['senolytics healthy aging', 13],
-    ['glymphatic system sleep', 11],
-  ];
+  var LIMITS = [100, 200, 300, 500, 1000, 2000];
+
+  // The sources this page can search: every registered source that answers
+  // requests from web pages.
+  var SOURCES = D.listSources().filter(function (s) { return s.browser; });
+
+  /** A source by its id; PubMed (or the first source) for an unknown one. */
+  function sourceOf(id) {
+    return SOURCES.find(function (s) { return s.id === id; }) || SOURCES.find(function (s) { return s.id === 'pubmed'; }) || SOURCES[0];
+  }
 
   var DEFAULTS = {
+    source: sourceOf('pubmed').id,
     retmax: 200,
     sort: 'relevance',
     algorithm: 'lingo',
     view: 'treemap',
     fromYear: '',
     toYear: '',
-    filters: { abstracts: true, english: false, humans: false, free: false, reviews: false, trials: false },
+    filters: {},          // per source: { pubmed: { abstracts: true, … } }; missing ones are the source's defaults
+    sourceSettings: {},   // per source: API keys, contact e-mail, proxy address, language
     mesh: false,
     biomedical: true,
     stopwords: '',
     stoplabels: '',
     labelFormat: 'title',
     params: { lingo: {}, stc: {}, bkm: {} },
-    apiKey: '',
-    email: '',
-    baseUrl: '',
     theme: 'system',
   };
 
@@ -78,14 +76,24 @@
       if (raw) {
         var saved = JSON.parse(raw);
         Object.keys(s).forEach(function (k) {
-          if (saved[k] === undefined) return;
-          if (k === 'filters' || k === 'params') s[k] = Object.assign(s[k], saved[k]);
-          else s[k] = saved[k];
+          if (saved[k] === undefined || saved[k] === null) return;
+          if (k === 'params' || k === 'sourceSettings') s[k] = Object.assign(s[k], saved[k]);
+          else if (k === 'filters') {
+            // Before 1.4 the filters were PubMed's alone: { abstracts: true, english: false, … }.
+            var flat = Object.keys(saved.filters).some(function (f) { return typeof saved.filters[f] === 'boolean'; });
+            s.filters = flat ? { pubmed: saved.filters } : Object.assign(s.filters, saved.filters);
+          } else s[k] = saved[k];
         });
+        // …and so were the NCBI settings.
+        if (saved.apiKey || saved.email || saved.baseUrl) {
+          s.sourceSettings.pubmed = Object.assign({ apiKey: saved.apiKey || '', email: saved.email || '', baseUrl: saved.baseUrl || '' }, s.sourceSettings.pubmed || {});
+        }
       }
     } catch (e) { /* storage unavailable: defaults */ }
     if (!ALGORITHM_NAMES[s.algorithm]) s.algorithm = 'lingo';
+    if (s.sort === 'pub_date') s.sort = 'date';  // PubMed's name for it before 1.4
     s.view = viewName(s.view) || DEFAULTS.view;
+    s.source = sourceOf(s.source).id;
     return s;
   }
 
@@ -96,6 +104,8 @@
   var settings = loadSettings();
   var state = {
     query: '',
+    source: null,     // the source of the records on show
+    language: 'en',   // the language they are clustered in
     search: null,
     articles: [],
     documents: [],
@@ -108,6 +118,7 @@
     expanded: new Set(),
     runId: 0,
     clusterJob: 0,
+    pendingNext: null,   // a search's records while they are being grouped
     controller: null,
     lastSettingsOpener: null,
   };
@@ -173,9 +184,12 @@
     p.firstElementChild.style.width = Math.round(Math.max(0, Math.min(1, fraction)) * 100) + '%';
   }
 
+  // The button stays enabled while a search runs: a new query (or Enter again) replaces the running search.
   function setBusy(busy) {
-    $('search-button').disabled = busy;
-    $('search-button').textContent = busy ? 'Searching…' : 'Search';
+    var b = $('search-button');
+    b.classList.toggle('busy', busy);
+    b.setAttribute('aria-busy', busy ? 'true' : 'false');
+    b.textContent = busy ? 'Searching…' : 'Search';
   }
 
   function download(name, text, type) {
@@ -208,44 +222,94 @@
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
-  // ---------------------------------------------------------------- PubMed
+  // ---------------------------------------------------------------- sources
 
-  function makeClient() {
-    return new D.PubMedClient({
-      apiKey: settings.apiKey.trim() || undefined,
-      email: settings.email.trim() || undefined,
-      baseUrl: settings.baseUrl.trim() || undefined,
-      tool: 'broccoli',
+  function currentSource() { return sourceOf(settings.source); }
+
+  /** The source's filters as switched on in Settings (its defaults where untouched). */
+  function filtersFor(src) {
+    var saved = settings.filters[src.id] || {};
+    var out = {};
+    src.filters.forEach(function (f) { out[f.id] = saved[f.id] !== undefined ? !!saved[f.id] : f.default; });
+    return out;
+  }
+
+  /** The source's own settings: keys, e-mail, proxy, language (shared with the source it takes them from). */
+  function settingsFor(src) {
+    var own = settings.sourceSettings[src.settingsFrom || src.id] || {};
+    var out = {};
+    var defs = (src.settings || []).concat(src.settingsFrom ? (sourceOf(src.settingsFrom).settings || []) : []);
+    defs.forEach(function (d) {
+      var v = own[d.id];
+      if (typeof v === 'string') v = v.trim();
+      if (v === undefined || v === '') v = d.default;
+      if (v !== undefined && v !== '') out[d.id] = v;
     });
+    return out;
   }
 
-  /** The PubMed query with the filters from Settings. */
-  function buildTerm(query) {
-    var f = settings.filters;
-    var parts = [];
-    if (f.abstracts) parts.push('hasabstract');
-    if (f.english) parts.push('english[lang]');
-    if (f.humans) parts.push('humans[mh]');
-    if (f.free) parts.push('free full text[sb]');
-    if (f.reviews) parts.push('review[pt]');
-    if (f.trials) parts.push('clinical trial[pt]');
-    return parts.length ? '(' + query + ') AND ' + parts.join(' AND ') : query;
+  function sortFor(src) {
+    return src.sorts.some(function (o) { return o.id === settings.sort; }) ? settings.sort : src.sorts[0].id;
   }
 
-  function errorMessage(err) {
-    if (err && err.network) {
-      return 'Could not reach PubMed. Check your connection. If a firewall blocks NCBI, set a proxy address under Settings, NCBI access.';
+  function limitFor(src) {
+    return Math.min(settings.retmax, src.maxLimit);
+  }
+
+  /** The source the records on show came from. */
+  function shownSource() { return state.source || currentSource(); }
+
+  /** The API's own words about an error, from a JSON or text answer. */
+  function apiDetail(err) {
+    var raw = String((err && err.detail) || '');
+    var msg = '';
+    try {
+      var j = JSON.parse(raw);
+      var m = j.message || j.error || j.errors || j.detail || j.errMsg;
+      if (Array.isArray(m)) m = m[0];
+      if (m && typeof m === 'object') m = m.message || m.info || m.detail || m.title || '';
+      msg = typeof m === 'string' ? m : '';
+    } catch (e) {
+      msg = raw.replace(/<[^>]*>/g, ' ');
     }
-    if (err && err.status === 429) return 'NCBI is limiting requests from this address. Wait a minute, or add an NCBI API key in Settings.';
-    if (err && /ESearch: /.test(err.message)) return 'PubMed could not read the query: ' + err.message.replace(/^ESearch: /, '');
+    msg = msg.replace(/\s+/g, ' ').trim();
+    return msg.length > 180 ? msg.slice(0, 177) + '…' : msg;
+  }
+
+  function errorMessage(err, src) {
+    var kind = err && err.kind;
+    var name = src.name;
+    var openalex = src.service === 'openalex';
+    if (kind === 'network') {
+      if (src.id === 'pubmed') return 'Could not reach PubMed. Check your connection. If a firewall blocks NCBI, set a proxy address under Settings, Keys and access.';
+      return 'Could not reach ' + name + '. Check your connection and try again.';
+    }
+    if (kind === 'timeout') return name + ' did not answer in time. Try again, or ask for fewer records.';
+    if (kind === 'rate-limit') {
+      if (src.id === 'pubmed') return 'NCBI is limiting requests from this address. Wait a minute, or add an NCBI API key in Settings.';
+      if (openalex) {
+        return settingsFor(src).apiKey
+          ? 'OpenAlex is not taking more searches with this API key for now. Try again later.'
+          : 'OpenAlex is not taking more searches from this address for now: without an API key it allows only a few a day. Add your free OpenAlex key under Settings, Keys and access, or try again later.';
+      }
+      return name + ' is limiting requests from this address. Wait a minute and try again.';
+    }
+    if (kind === 'http' && (err.status === 401 || err.status === 403) && settingsFor(src).apiKey) {
+      return name + ' did not accept the API key in Settings (HTTP ' + err.status + ').';
+    }
+    if (kind === 'http' && err.status === 400) {
+      var said = apiDetail(err);
+      return name + ' could not run this search' + (said ? ': ' + said.replace(/\.$/, '') + '.' : '.') + (src.syntax ? ' ' + src.syntax : '');
+    }
     return (err && err.message) || String(err);
   }
 
   async function runSearch(rawQuery, options) {
     options = options || {};
+    var src = currentSource();
     var query = String(rawQuery || '').trim();
     if (!query) {
-      setStatus('Type something to search for, for example: long covid cognitive symptoms');
+      setStatus('Type something to search for, for example: ' + ((src.examples[0] && src.examples[0].query) || src.placeholder || 'a topic'));
       $('q').focus();
       return;
     }
@@ -254,6 +318,9 @@
     state.controller = controller;
     var signal = controller ? controller.signal : undefined;
     var runId = ++state.runId;
+    // A search still being grouped is dropped: its records must not replace this one's.
+    state.pendingNext = null;
+    state.clusterJob++;
     state.query = query;
     $('q').value = query;
     if (options.updateHash !== false) {
@@ -261,69 +328,86 @@
       writeHash();
     }
     setBusy(true);
-    setStatus('Searching PubMed…');
+    setStatus('Searching ' + src.name + '…');
     setProgress(0.04);
     try {
-      var client = makeClient();
-      var search = await client.search(buildTerm(query), {
-        retmax: settings.retmax,
-        sort: settings.sort,
-        mindate: settings.fromYear || undefined,
-        maxdate: settings.toYear || undefined,
-        signal: signal,
-      });
-      if (runId !== state.runId) return;
-      if (!search.ids.length) {
-        var suggestion = null;
-        try { suggestion = await client.spell(query, { signal: signal }); } catch (e) { /* no suggestion */ }
-        if (runId !== state.runId) return;
-        showNoMatches(query, suggestion, search);
-        return;
-      }
-      setStatus('Found ' + plural(search.count, 'record') + '. Fetching the first ' + fmt(search.ids.length) + '…');
-      setProgress(0.08);
-      var articles = await client.fetchArticles(search.ids, {
+      var result = await D.searchSource(src, query, {
+        limit: limitFor(src),
+        sort: sortFor(src),
+        filters: filtersFor(src),
+        from: settings.fromYear,
+        to: settings.toYear,
+        settings: settingsFor(src),
         signal: signal,
         onProgress: function (done, total) {
           if (runId !== state.runId) return;
-          setProgress(0.08 + 0.62 * (total ? done / total : 1));
-          if (done > 0) setStatus('Fetching records: ' + fmt(done) + ' of ' + fmt(total));
+          setProgress(0.06 + 0.66 * (total ? Math.min(1, done / total) : 0));
+          if (done > 0) setStatus('Fetching records from ' + src.name + ': ' + fmt(done) + ' of ' + fmt(total));
         },
       });
       if (runId !== state.runId) return;
-      state.search = search;
-      state.articles = articles;
-      state.expanded = new Set();
-      rebuildDocuments();
-      await recluster({ animate: true, path: options.path || [], fresh: true });
+      if (!result.records.length) {
+        keepShownSearch();
+        showNoMatches(query, result, src);
+        return;
+      }
+      // The new records replace the ones on show only once they are grouped, so the map and the list always match.
+      await recluster({
+        animate: true, path: options.path || [], fresh: true,
+        next: {
+          runId: runId,
+          source: src,
+          search: result,
+          articles: result.records,
+          documents: makeDocuments(result.records),
+          language: result.language && D.listLanguages().some(function (l) { return l.code === result.language; }) ? result.language : 'en',
+        },
+      });
     } catch (err) {
       if (err && err.name === 'AbortError') return;
       if (runId !== state.runId) return;
+      keepShownSearch();
       setProgress(null);
-      setStatus(errorMessage(err), true);
+      setStatus(errorMessage(err, src), true);
     } finally {
       if (runId === state.runId) setBusy(false);
     }
   }
 
-  function showNoMatches(query, suggestion, search) {
+  function showNoMatches(query, result, src) {
     setProgress(null);
-    var html = 'No PubMed records match <b>' + esc(query) + '</b>';
-    if (Object.values(settings.filters).some(Boolean) || settings.fromYear || settings.toYear) html += ' with the current filters';
+    var html = 'No ' + esc(src.name) + ' records match <b>' + esc(query) + '</b>';
+    var filters = filtersFor(src);
+    var changed = src.filters.some(function (f) { return filters[f.id] !== f.default; });
+    if (changed || (src.years && (settings.fromYear || settings.toYear))) html += ' with the current filters';
     html += '.';
-    if (search && search.phrasesNotFound && search.phrasesNotFound.length) {
-      html += ' PubMed found nothing for: ' + search.phrasesNotFound.map(esc).join(', ') + '.';
+    if (result && result.phrasesNotFound && result.phrasesNotFound.length) {
+      html += ' PubMed found nothing for: ' + result.phrasesNotFound.map(esc).join(', ') + '.';
     }
-    if (suggestion) {
-      html += ' <button type="button" class="btn" id="try-suggestion">Search for ' + esc(suggestion) + ' instead</button>';
+    if (result && result.suggestion) {
+      html += ' <button type="button" class="btn" id="try-suggestion">Search for ' + esc(result.suggestion) + ' instead</button>';
     }
     setStatusHtml(html);
     var b = $('try-suggestion');
-    if (b) b.addEventListener('click', function () { runSearch(suggestion); });
+    if (b) b.addEventListener('click', function () { runSearch(result.suggestion); });
+  }
+
+  function makeDocuments(records) {
+    return D.toDocuments(records, { includeMesh: settings.mesh, includeKeywords: settings.mesh });
   }
 
   function rebuildDocuments() {
-    state.documents = D.toDocuments(state.articles, { includeMesh: settings.mesh, includeKeywords: settings.mesh });
+    state.documents = makeDocuments(state.articles);
+  }
+
+  /** The query of the records on show (the one typed may be newer, or may have failed). */
+  function shownQuery() {
+    return state.search ? state.search.query : state.query;
+  }
+
+  /** After a search that found nothing or failed, the records on show stay, and so does their query. */
+  function keepShownSearch() {
+    if (state.search && state.root) state.query = state.search.query;
   }
 
   // ---------------------------------------------------------------- clustering
@@ -332,22 +416,27 @@
     return String(text || '').split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
   }
 
-  function clusterOptions() {
+  /** Options for clustering the records on show, or `next`, the records about to be. */
+  function clusterOptions(next) {
     var wordFilters = lines(settings.stopwords);
     var labelFilters = lines(settings.stoplabels);
+    var language = next ? next.language : state.language;
+    var english = language === 'en';
     return {
       algorithm: settings.algorithm,
       preset: 'abstracts',
-      extras: settings.biomedical ? ['biomedical'] : [],
-      queryHint: state.query,
+      language: language,
+      extras: settings.biomedical && english ? ['biomedical'] : [],
+      queryHint: next ? next.search.query : shownQuery(),
       fields: settings.mesh ? ['title', 'abstract', 'terms'] : ['title', 'abstract'],
       titleField: 'title',
-      parameters: algorithmParameters(state.documents.length, false),
+      parameters: algorithmParameters((next ? next.documents : state.documents).length, false),
       dictionaries: {
         wordFilters: wordFilters.length ? [{ glob: wordFilters }] : [],
         labelFilters: labelFilters.length ? [{ glob: labelFilters }] : [],
       },
-      labelFormat: settings.labelFormat,
+      // Other languages have their own way of writing labels unless asked otherwise.
+      labelFormat: english || settings.labelFormat !== 'title' ? settings.labelFormat : undefined,
     };
   }
 
@@ -370,7 +459,7 @@
   /** Options for clustering inside a topic: its own label words join the query, so they are not repeated as labels. */
   function subOptions(node) {
     var opts = clusterOptions();
-    var hint = [state.query];
+    var hint = [shownQuery()];
     for (var n = node; n && n.parent; n = n.parent) if (!n.other) hint.push(n.label);
     opts.queryHint = hint.join(' ');
     opts.parameters = algorithmParameters(node.docs.length, true);
@@ -390,25 +479,41 @@
 
   async function recluster(options) {
     options = options || {};
-    if (!state.documents.length) return;
+    // Records of a search still being grouped are the ones to group again.
+    var next = options.next || state.pendingNext;
+    var docs = next ? next.documents : state.documents;
+    if (!docs.length) return;
     var job = ++state.clusterJob;
-    var keepPath = options.path && options.path.length ? options.path : options.fresh ? [] : focusPath();
-    setStatus('Grouping ' + plural(state.documents.length, 'record') + ' into topics…');
+    state.pendingNext = next || null;
+    var keepPath = options.path && options.path.length ? options.path : options.fresh || next ? [] : focusPath();
+    setStatus('Grouping ' + plural(docs.length, 'record') + ' into topics…');
     setProgress(0.75);
-    var opts = clusterOptions();
+    var opts = clusterOptions(next);
     opts.onProgress = function (stage) {
       if (job === state.clusterJob && STAGES[stage]) setStatus(STAGES[stage]);
     };
     var result;
     try {
-      result = await clusterer.cluster(state.documents, opts);
+      result = await clusterer.cluster(docs, opts);
     } catch (err) {
       if (job !== state.clusterJob) return;
+      state.pendingNext = null;
       setProgress(null);
       setStatus('Clustering failed: ' + ((err && err.message) || err), true);
       return;
     }
     if (job !== state.clusterJob) return;
+    if (next && next.runId !== state.runId) return;  // a newer search has started since
+    if (next) {
+      state.pendingNext = null;
+      state.source = next.source;
+      state.search = next.search;
+      state.articles = next.articles;
+      state.documents = next.documents;
+      state.language = next.language;
+      state.expanded = new Set();
+      renderRecordActions();
+    }
     state.result = result;
     state.treeGen++;
     ahead.queue = [];
@@ -420,8 +525,9 @@
     setStatus(summaryText());
     lookAhead(readyKids(state.root), false);
     if (keepPath.length) followPath(keepPath, { animate: true, replace: true });
-    else if (options.fresh) writeHash(true);
+    else if (options.fresh || next) writeHash(true);
   }
+
 
   // ---------------------------------------------------------------- the topic tree
 
@@ -606,13 +712,18 @@
   }
 
   function summaryText() {
-    var r = state.result, s = state.search;
+    var r = state.result, s = state.search, src = shownSource();
     var topics = r.clusters.filter(function (c) { return !c.other; }).length;
     var seconds = (r.timings.total / 1000).toFixed(r.timings.total < 1000 ? 2 : 1);
     var shown = state.articles.length;
-    var head = s && s.count > shown
-      ? fmt(s.count) + ' records match. The first ' + fmt(shown) + ' are grouped'
-      : plural(shown, 'record') + ' grouped';
+    var head;
+    if (s && s.total > shown && src.matchesAnyWord) {
+      head = src.name + ' ranks ' + fmt(s.total) + ' records against these words. The best ' + fmt(shown) + ' are grouped';
+    } else if (s && s.total > shown) {
+      head = fmt(s.total) + ' records match. The first ' + fmt(shown) + ' are grouped';
+    } else {
+      head = plural(shown, 'record') + ' grouped';
+    }
     return head + ' into ' + plural(topics, 'topic') + ' by ' + ALGORITHM_NAMES[r.algorithm] + ' in ' + seconds + ' s.';
   }
 
@@ -910,7 +1021,7 @@
     $('records-title').textContent = f.parent ? f.label : 'All records';
     var sub;
     if (!f.parent) {
-      sub = plural(n, 'record') + ' from PubMed for “' + state.query + '”';
+      sub = plural(n, 'record') + ' from ' + shownSource().name + ' for “' + shownQuery() + '”';
     } else if (f.other) {
       sub = plural(n, 'record') + ' the algorithm did not place in a ' + (f.depth > 1 ? 'subtopic of ' + f.parent.label : 'topic');
     } else {
@@ -920,26 +1031,32 @@
     $('records-sub').textContent = sub;
   }
 
+  /** Where a record appeared: journal, preprint server, repository, sponsor… */
+  function venueOf(a) {
+    var j = a.journal || {};
+    return j.isoAbbreviation || j.title || a.publisher || '';
+  }
+
   function citationHtml(a) {
     var j = a.journal || {};
     var parts = [];
     if (a.authorString) parts.push(esc(a.authorString.replace(/\.$/, '')) + '.');
-    var src = j.isoAbbreviation || j.title;
+    var venue = venueOf(a);
     var where = '';
-    if (src) where += '<i>' + esc(src.replace(/\.$/, '')) + '</i>. ';
+    if (venue) where += '<i>' + esc(venue.replace(/\.$/, '')) + '</i>. ';
     if (a.pubDate && a.pubDate.text) where += esc(a.pubDate.text);
     else if (a.year) where += a.year;
     if (j.volume) where += ';' + esc(j.volume) + (j.issue ? '(' + esc(j.issue) + ')' : '');
     if (j.pages) where += ':' + esc(j.pages);
-    if (where) parts.push(where.trim() + '.');
-    var types = NOTABLE_TYPES.filter(function (t) { return (a.publicationTypes || []).indexOf(t) >= 0; });
-    var flagged = types.filter(function (t) { return /Retract/.test(t); });
-    var normal = types.filter(function (t) { return !/Retract/.test(t); }).slice(0, 2);
+    if (where) parts.push(where.trim().replace(/\.$/, '') + '.');
+    var tags = a.tags && a.tags.length ? a.tags : D.notableTypes(a.publicationTypes);
+    var flagged = tags.filter(function (t) { return /Retract/.test(t); });
+    var normal = tags.filter(function (t) { return !/Retract/.test(t); }).slice(0, 3);
     if (normal.length) parts.push(esc(normal.join(', ')) + '.');
-    var ids = '<span class="ids">PMID: <a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.pmid) + '</a></span>';
-    if (a.pmcid) ids += ' <span class="ids">Free full text: <a href="https://pmc.ncbi.nlm.nih.gov/articles/' + esc(a.pmcid) + '/" target="_blank" rel="noopener">' + esc(a.pmcid) + '</a></span>';
-    if (a.doi) ids += ' <span class="ids">doi: <a href="https://doi.org/' + esc(a.doi) + '" target="_blank" rel="noopener">' + esc(a.doi) + '</a></span>';
-    var html = parts.join(' ') + ' ' + ids;
+    var ids = (a.links || []).filter(function (l) { return D.safeUrl(l.url); }).map(function (l) {
+      return '<span class="ids">' + esc(l.label) + ': <a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.text) + '</a></span>';
+    }).join(' ');
+    var html = parts.join(' ') + (ids ? ' ' + ids : '');
     if (flagged.length) html = '<b style="color:var(--danger)">' + esc(flagged.join(', ')) + '.</b> ' + html;
     return html;
   }
@@ -958,10 +1075,10 @@
   function renderRecord(d, terms) {
     var a = state.articles[d];
     if (!a) return '';
-    var expanded = state.expanded.has(a.pmid);
+    var expanded = state.expanded.has(a.id);
     var title = highlightMarkup(a.titleHtml || esc(a.title || '(no title)'), terms);
     var html = '<li class="record" data-doc="' + d + '">';
-    html += '<h3><a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + title + '</a></h3>';
+    html += '<h3>' + (D.safeUrl(a.url) ? '<a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + title + '</a>' : title) + '</h3>';
     html += '<p class="citation">' + citationHtml(a) + '</p>';
     if (a.abstract) {
       if (expanded) {
@@ -974,20 +1091,22 @@
           html += '<p class="abstract-section">' + highlightMarkup(a.abstractSections[0] ? a.abstractSections[0].html : esc(a.abstract), terms) + '</p>';
         }
         html += '</div>';
-        var mesh = (a.mesh || []).filter(function (m) { return !D.MESH_CHECK_TAGS.has(m.descriptor.toLowerCase()); });
+        var mesh = (a.mesh || []).filter(function (m) { return m && m.descriptor && !D.MESH_CHECK_TAGS.has(m.descriptor.toLowerCase()); });
         if (mesh.length) {
-          html += '<p class="mesh">MeSH: ' + mesh.map(function (m) { return m.major || m.qualifiers.some(function (q) { return q.major; }) ? '<b>' + esc(m.descriptor) + '</b>' : esc(m.descriptor); }).join(', ') + '</p>';
+          html += '<p class="mesh">MeSH: ' + mesh.map(function (m) { return m.major || (m.qualifiers || []).some(function (q) { return q.major; }) ? '<b>' + esc(m.descriptor) + '</b>' : esc(m.descriptor); }).join(', ') + '</p>';
         }
-        if (a.keywords && a.keywords.length) html += '<p class="mesh">Keywords: ' + a.keywords.map(esc).join(', ') + '</p>';
+        if (a.keywords && a.keywords.length) html += '<p class="mesh">' + esc(shownSource().keywordsLabel || 'Keywords') + ': ' + a.keywords.map(esc).join(', ') + '</p>';
       } else {
         html += '<p class="abstract clamped">' + excerpt(a.abstract, terms) + '</p>';
       }
     } else {
-      html += '<p class="abstract"><i>No abstract in PubMed.</i></p>';
+      html += '<p class="abstract"><i>No abstract in ' + esc(shownSource().name) + '.</i></p>';
     }
     html += '<div class="record-foot">';
     if (a.abstract) {
-      html += '<button type="button" class="btn btn-quiet" data-toggle="' + esc(a.pmid) + '" aria-expanded="' + expanded + '">' + (expanded ? 'Hide full abstract' : 'Show full abstract') + '</button>';
+      var whole = a.type === 'page' ? 'text' : a.type === 'trial' ? 'summary' : 'abstract';
+      var more = a.abstractSections.length > 1 || (a.keywords && a.keywords.length) || (a.mesh && a.mesh.length) || a.abstract.length > 260;
+      if (more) html += '<button type="button" class="btn btn-quiet" data-toggle="' + esc(a.id) + '" aria-expanded="' + expanded + '">' + (expanded ? 'Hide full ' + whole : 'Show full ' + whole) + '</button>';
     }
     var topics = recordTopics.get(d) || [];
     if (topics.length) {
@@ -1012,8 +1131,11 @@
     if (!r) return;
     var rows = [];
     var add = function (k, v) { if (v !== undefined && v !== null && v !== '') rows.push('<dt>' + esc(k) + '</dt><dd>' + esc(String(v)) + '</dd>'); };
-    add('PubMed query', s && s.queryTranslation);
-    add('Records matched', s && fmt(s.count));
+    var src = shownSource();
+    add('Source', src.name);
+    add(src.id === 'pubmed' ? 'PubMed query' : 'Query as run', s && s.queryTranslation);
+    add(src.matchesAnyWord ? 'Records ranked' : 'Records matched', s && fmt(s.total));
+    add('Requests to ' + src.name, s && s.requests ? fmt(s.requests) : null);
     add('Records clustered', fmt(state.documents.length));
     add('Algorithm', ALGORITHM_NAMES[r.algorithm] + (r.algorithm === 'lingo' ? ', ' + r.parameters.matrixReducer.factorizationFactory + ' factorization' : ''));
     add('Ran in', (clusterer.mode === 'worker' ? 'a background worker' : 'the page') + ', ' + r.timings.total + ' ms');
@@ -1029,6 +1151,8 @@
       add('Topics split into subtopics', computed ? fmt(computed) + (helper ? ', some ahead of time in a second worker' : '') : 'none yet');
     }
     if (r.warnings && r.warnings.length) add('Parameter notes', r.warnings.join('; '));
+    if (s && s.warnings && s.warnings.length) add('Notes from ' + src.name, s.warnings.join('; '));
+    if (state.language !== 'en') add('Language', (D.listLanguages().find(function (l) { return l.code === state.language; }) || {}).name || state.language);
     add('Library', 'Broccoli ' + D.VERSION);
     $('about-list').innerHTML = rows.join('');
   }
@@ -1051,7 +1175,7 @@
     if (pos < 0) return;
     if (pos >= state.shown) state.shown = Math.ceil((pos + 1) / PAGE) * PAGE;
     var a = state.articles[doc];
-    if (a) state.expanded.add(a.pmid);
+    if (a) state.expanded.add(a.id);
     renderRecords(pos + 1);
     var li = $('records').querySelector('.record[data-doc="' + doc + '"]');
     if (li) {
@@ -1073,8 +1197,7 @@
     recordInfo: function (doc) {
       var a = state.articles[doc];
       if (!a) return null;
-      var j = a.journal || {};
-      return { title: a.title || '(no title)', meta: [j.isoAbbreviation || j.title, a.year].filter(Boolean).join(', ') };
+      return { title: a.title || '(no title)', meta: [venueOf(a), a.year].filter(Boolean).join(', ') };
     },
   });
 
@@ -1086,15 +1209,16 @@
 
   function exportName(ext) {
     var f = state.focus;
-    return 'broccoli-' + slug(state.query) + (f && f.parent ? '-' + slug(f.label) : '') + '.' + ext;
+    return 'broccoli-' + slug(shownQuery()) + (f && f.parent ? '-' + slug(f.label) : '') + '.' + ext;
   }
 
   function serializeTree(node) {
     var out = {
       label: node.label,
       size: node.size,
-      pmids: node.docs.map(function (d) { return state.articles[d] && state.articles[d].pmid; }).filter(Boolean),
+      ids: node.docs.map(function (d) { return state.articles[d] && state.articles[d].id; }).filter(Boolean),
     };
+    if (shownSource().id === 'pubmed') out.pmids = out.ids;
     if (node.other) out.other = true;
     var kids = readyKids(node);
     if (kids.length) out.subtopics = kids.map(serializeTree);
@@ -1103,8 +1227,13 @@
 
   // ---------------------------------------------------------------- landing
 
+  /** The current source's example searches: [query, size of its floret]. */
+  function examples() {
+    return currentSource().examples.map(function (e) { return [e.query, e.weight]; });
+  }
+
   function renderExamplesList() {
-    $('examples-list').innerHTML = EXAMPLES.map(function (e, i) {
+    $('examples-list').innerHTML = examples().map(function (e, i) {
       return '<li><button type="button" data-example="' + i + '">' + esc(e[0]) + '</button></li>';
     }).join('');
   }
@@ -1112,10 +1241,12 @@
   function renderLanding() {
     var svg = $('landing-florets');
     var figure = svg.parentNode;
+    var list = examples();
+    figure.hidden = !list.length;  // a source of your own may come without examples
     var width = Math.max(260, figure.clientWidth || 640);
     var compact = width < 560;
     var height = Math.round(Math.max(compact ? 300 : 360, Math.min(480, width * (compact ? 0.9 : 0.66))));
-    var clusters = EXAMPLES.map(function (e, i) {
+    var clusters = list.map(function (e, i) {
       return { id: i, label: e[0], size: e[1], documents: [] };
     });
     Florets.render(svg, {
@@ -1129,15 +1260,15 @@
       colorOf: function (c) {
         return floretColors(Colors.markSlot(c.id, dark, false));
       },
-      onSelect: function (id) { runSearch(EXAMPLES[id][0]); },
+      onSelect: function (id) { runSearch(list[id][0]); },
     });
     // The buds of the examples are decoration: drop the counts.
     Array.prototype.forEach.call(svg.querySelectorAll('.count'), function (n) { n.remove(); });
     Array.prototype.forEach.call(svg.querySelectorAll('.floret'), function (g) {
       var id = +g.getAttribute('data-id');
-      g.setAttribute('aria-label', 'Search for ' + EXAMPLES[id][0]);
+      g.setAttribute('aria-label', 'Search for ' + list[id][0]);
       var t = g.querySelector('title');
-      if (t) t.textContent = 'Search for ' + EXAMPLES[id][0];
+      if (t) t.textContent = 'Search for ' + list[id][0];
     });
   }
 
@@ -1148,6 +1279,9 @@
     ahead.queue = [];
     if (state.controller) state.controller.abort();
     state.query = '';
+    state.source = null;
+    state.search = null;
+    state.pendingNext = null;
     state.result = null;
     state.root = null;
     state.focus = null;
@@ -1164,28 +1298,38 @@
 
   // ---------------------------------------------------------------- URL state
 
-  // the filters on, comma-separated ('' when none)
-  function filterKey(filters) {
-    filters = filters || settings.filters;
-    return Object.keys(DEFAULTS.filters).filter(function (k) { return filters[k]; }).join(',');
+  // a source's filters that are on, comma-separated ('' when none)
+  function filterKey(src, filters) {
+    filters = filters || filtersFor(src);
+    return src.filters.filter(function (f) { return filters[f.id]; }).map(function (f) { return f.id; }).join(',');
+  }
+
+  function defaultFilterKey(src) {
+    return src.filters.filter(function (f) { return f.default; }).map(function (f) { return f.id; }).join(',');
   }
 
   function searchKey() {
-    return [settings.retmax, settings.sort, settings.fromYear, settings.toYear, filterKey()].join('|');
+    var src = currentSource();
+    return [src.id, limitFor(src), sortFor(src), src.years ? settings.fromYear + '-' + settings.toYear : '', filterKey(src), settingsFor(src).lang || ''].join('|');
   }
 
   function writeHash(replace) {
+    var src = currentSource();
     var p = new URLSearchParams();
-    p.set('q', state.query);
-    if (settings.retmax !== DEFAULTS.retmax) p.set('n', settings.retmax);
-    if (settings.sort !== DEFAULTS.sort) p.set('sort', settings.sort);
-    if (settings.algorithm !== DEFAULTS.algorithm) p.set('a', settings.algorithm);
-    if (settings.fromYear) p.set('from', settings.fromYear);
-    if (settings.toYear) p.set('to', settings.toYear);
-    // the filters, when not the defaults: a shared link finds the same records anywhere
-    if (filterKey() !== filterKey(DEFAULTS.filters)) p.set('f', filterKey() || 'none');
-    if (settings.view !== DEFAULTS.view) p.set('v', settings.view);
     var path = focusPath();
+    if (src.id !== DEFAULTS.source) p.set('s', src.id);
+    // A path to a topic belongs to the records on show, so it travels with their query.
+    p.set('q', path.length ? shownQuery() : state.query);
+    if (settings.retmax !== DEFAULTS.retmax) p.set('n', settings.retmax);
+    if (sortFor(src) !== 'relevance') p.set('sort', sortFor(src));
+    if (settings.algorithm !== DEFAULTS.algorithm) p.set('a', settings.algorithm);
+    if (src.years && settings.fromYear) p.set('from', settings.fromYear);
+    if (src.years && settings.toYear) p.set('to', settings.toYear);
+    // the filters, when not the defaults: a shared link finds the same records anywhere
+    if (filterKey(src) !== defaultFilterKey(src)) p.set('f', filterKey(src) || 'none');
+    var lang = settingsFor(src).lang;
+    if (lang && lang !== 'en') p.set('lang', lang);
+    if (settings.view !== DEFAULTS.view) p.set('v', settings.view);
     if (path.length) p.set('p', path.join('|'));
     var hash = '#' + p.toString();
     if (location.hash !== hash) {
@@ -1200,18 +1344,30 @@
 
   function readHash() {
     var p = new URLSearchParams(location.hash.replace(/^#/, ''));
-    if (!p.get('q')) return { q: null, path: [] };
+    if (!p.get('q')) {
+      // A link to a source alone (#s=arxiv) opens it, ready for a search.
+      if (p.get('s') && SOURCES.some(function (x) { return x.id === p.get('s'); })) settings.source = p.get('s');
+      return { q: null, path: [] };
+    }
     // A search link carries its whole state; anything it leaves out is the default.
+    settings.source = sourceOf(p.get('s') || DEFAULTS.source).id;
+    var src = currentSource();
     var n = parseInt(p.get('n'), 10);
     if (n > 0) settings.retmax = Math.min(2000, n);
     else settings.retmax = DEFAULTS.retmax;
-    settings.sort = p.get('sort') === 'pub_date' ? 'pub_date' : 'relevance';
+    var sort = p.get('sort') === 'pub_date' ? 'date' : p.get('sort');  // pub_date: PubMed links before 1.4
+    settings.sort = src.sorts.some(function (o) { return o.id === sort; }) ? sort : 'relevance';
     settings.algorithm = ALGORITHM_NAMES[p.get('a')] ? p.get('a') : DEFAULTS.algorithm;
     settings.fromYear = p.get('from') || '';
     settings.toYear = p.get('to') || '';
     var on = {};
-    (p.get('f') !== null ? p.get('f') : filterKey(DEFAULTS.filters)).split(',').forEach(function (k) { on[k.trim()] = true; });
-    Object.keys(DEFAULTS.filters).forEach(function (k) { settings.filters[k] = !!on[k]; });
+    (p.get('f') !== null ? p.get('f') : defaultFilterKey(src)).split(',').forEach(function (k) { on[k.trim()] = true; });
+    settings.filters[src.id] = {};
+    src.filters.forEach(function (f) { settings.filters[src.id][f.id] = !!on[f.id]; });
+    if ((src.settings || []).some(function (d) { return d.id === 'lang'; })) {
+      var own = settings.sourceSettings[src.id] = settings.sourceSettings[src.id] || {};
+      own.lang = p.get('lang') || 'en';
+    }
     if (viewName(p.get('v'))) settings.view = viewName(p.get('v'));
     var path = p.get('p') ? p.get('p').split('|').filter(Boolean) : [];
     return { q: p.get('q'), path: path };
@@ -1221,8 +1377,9 @@
     // popstate and hashchange can both fire for one navigation.
     if (location.hash === lastHash) return;
     lastHash = location.hash;
-    var before = searchKey(), algorithm = settings.algorithm, view = settings.view;
+    var before = searchKey(), algorithm = settings.algorithm, view = settings.view, source = settings.source;
     var h = readHash();
+    if (settings.source !== source) applySource();
     syncControls();
     if (settings.view !== view) applyView();
     if (h.q && h.q === state.query && state.documents.length && searchKey() === before) {
@@ -1233,6 +1390,158 @@
     }
     if (h.q) runSearch(h.q, { updateHash: false, path: h.path });
     else showLanding();
+  }
+
+  // ---------------------------------------------------------------- source tabs
+
+  function renderSourceTabs() {
+    var html = '';
+    var group = null;
+    SOURCES.forEach(function (src) {
+      if (group !== null && src.group !== group) html += '<span class="tab-sep" aria-hidden="true"></span>';
+      group = src.group;
+      var on = src.id === settings.source;
+      html += '<button type="button" role="tab" class="source-tab" id="tab-' + esc(src.id) + '" data-source="' + esc(src.id) + '" aria-selected="' + on + '"' +
+        ' aria-controls="search-form" tabindex="' + (on ? 0 : -1) + '" title="' + esc(src.name + ': ' + src.description) + '">' + esc(src.shortName) + '</button>';
+    });
+    $('source-tabs').innerHTML = html;
+    revealTab();
+  }
+
+  /** Scrolls the tab row (not the page) so the selected tab shows. */
+  function revealTab() {
+    var row = $('source-tabs');
+    var tab = row.querySelector('[aria-selected="true"]');
+    if (tab && row.scrollWidth > row.clientWidth) {
+      var left = tab.offsetLeft - row.offsetLeft;
+      if (left < row.scrollLeft + 24 || left + tab.offsetWidth > row.scrollLeft + row.clientWidth - 24) {
+        row.scrollLeft = Math.max(0, left - (row.clientWidth - tab.offsetWidth) / 2);
+      }
+    }
+    tabFades();
+  }
+
+  /** Fades the edge of the tab row where more tabs are hidden. */
+  function tabFades() {
+    var row = $('source-tabs');
+    row.classList.toggle('fade-left', row.scrollLeft > 2);
+    row.classList.toggle('fade-right', row.scrollLeft + row.clientWidth < row.scrollWidth - 2);
+  }
+
+  /** Brings the page in line with the current source: tabs, placeholder, options, filters, notes. */
+  function applySource() {
+    var src = currentSource();
+    Array.prototype.forEach.call($('source-tabs').querySelectorAll('[role="tab"]'), function (t) {
+      var on = t.getAttribute('data-source') === src.id;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+    });
+    revealTab();
+    // Phones have room for the example alone; the tab above says where it searches.
+    $('q').placeholder = window.innerWidth < 600 && src.placeholder ? 'e.g. ' + src.placeholder : 'Search ' + src.name + (src.placeholder ? ', e.g. ' + src.placeholder : '');
+    $('q-label').textContent = 'Search ' + src.name;
+    $('opt-sort').innerHTML = src.sorts.map(function (o) { return '<option value="' + esc(o.id) + '">' + esc(o.label) + '</option>'; }).join('');
+    $('opt-sort').disabled = src.sorts.length < 2;
+    var limits = LIMITS.filter(function (n) { return n <= src.maxLimit; });
+    if (limits.indexOf(src.maxLimit) < 0 && src.maxLimit < LIMITS[LIMITS.length - 1]) limits.push(src.maxLimit);
+    $('opt-retmax').innerHTML = limits.map(function (n) { return '<option value="' + n + '">' + fmt(n) + '</option>'; }).join('');
+    renderSourceNote();
+    renderSourceFilters();
+    renderSourceCredit();
+    if (!$('landing').hidden) { renderLanding(); renderExamplesList(); }
+  }
+
+  function linkHtml(href, text) {
+    return '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(text) + '</a>';
+  }
+
+  /** What the selected source is, how to query it, and where its API is documented. */
+  function renderSourceNote() {
+    var src = currentSource();
+    var links = [src.homepage ? linkHtml(src.homepage, src.name) : '', src.docs ? linkHtml(src.docs, 'API') : '', src.terms ? linkHtml(src.terms, 'terms') : ''].filter(Boolean);
+    $('source-name').textContent = src.name;
+    $('source-about').textContent = src.description;
+    $('source-syntax').innerHTML = esc(src.syntax || '') + (links.length ? ' <span class="source-links">' + links.join(' · ') + '</span>' : '');
+  }
+
+  function renderSourceCredit() {
+    var src = currentSource();
+    $('source-credit').innerHTML = 'Records come straight from ' + (src.homepage ? linkHtml(src.homepage, src.name) : esc(src.name)) +
+      (src.docs ? ' through ' + linkHtml(src.docs, 'its API') : '') + ' to this page. ' + plural(SOURCES.length, 'source') + ' to choose from: ' +
+      SOURCES.map(function (x) { return esc(x.name); }).join(', ') + '.';
+  }
+
+  function selectSource(id) {
+    if (id === settings.source || !SOURCES.some(function (x) { return x.id === id; })) return;
+    settings.source = id;
+    saveSettings();
+    applySource();
+    syncControls();
+    if (state.query) runSearch(state.query);
+    else {
+      try { history.replaceState(null, '', '#s=' + encodeURIComponent(id)); } catch (e) { /* ignore */ }
+      lastHash = location.hash;
+    }
+  }
+
+  // ---------------------------------------------------------------- filters and keys in Settings
+
+  function renderSourceFilters() {
+    var src = currentSource();
+    $('filters-legend').textContent = 'Search filters: ' + src.name;
+    $('years-row').hidden = !src.years;
+    var on = filtersFor(src);
+    var html = src.filters.map(function (f) {
+      return '<label class="check"><input type="checkbox" data-filter="' + esc(f.id) + '"' + (on[f.id] ? ' checked' : '') + '><span>' +
+        esc(f.label) + (f.help ? '<small>' + esc(f.help) + '</small>' : '') + '</span></label>';
+    }).join('');
+    var own = settingsFor(src);
+    (src.settings || []).filter(function (d) { return d.type === 'select'; }).forEach(function (d) {
+      html += '<label class="field"><span>' + esc(d.label) + '</span><select data-choice="' + esc(d.id) + '">' +
+        (d.options || []).map(function (o) { return '<option value="' + esc(o.id) + '"' + (String(own[d.id]) === String(o.id) ? ' selected' : '') + '>' + esc(o.label) + '</option>'; }).join('') +
+        '</select>' + (d.help ? '<small>' + esc(d.help) + '</small>' : '') + '</label>';
+    });
+    if (!html && !src.years) html = '<p class="hint">' + esc(src.name) + ' has no filters to set.</p>';
+    $('source-filters').innerHTML = html;
+  }
+
+  /** Keys, contact e-mails and proxy addresses, for every source that takes them. */
+  function renderAccess() {
+    var html = '';
+    SOURCES.forEach(function (src) {
+      if (src.settingsFrom) return;
+      var items = (src.settings || []).filter(function (d) { return d.type !== 'select'; });
+      if (!items.length) return;
+      var users = [src.name].concat(SOURCES.filter(function (x) { return x.settingsFrom === src.id; }).map(function (x) { return x.name; }));
+      var own = settings.sourceSettings[src.id] || {};
+      html += '<div class="access-group"><h3>' + esc(users.join(' and ')) + '</h3>';
+      items.forEach(function (d) {
+        var type = d.type === 'secret' ? 'password' : d.type === 'email' ? 'email' : d.type === 'url' ? 'url' : 'text';
+        html += '<label class="field"><span>' + esc(d.label) + '</span><input type="' + type + '" data-access="' + esc(src.id) + '" data-key="' + esc(d.id) + '"' +
+          ' value="' + esc(own[d.id] || '') + '"' + (d.placeholder ? ' placeholder="' + esc(d.placeholder) + '"' : '') +
+          (type === 'email' ? ' autocomplete="email"' : ' autocomplete="off"') + ' spellcheck="false">' + (d.help ? '<small>' + esc(d.help) + '</small>' : '') + '</label>';
+      });
+      html += '</div>';
+    });
+    $('access').innerHTML = html;
+  }
+
+  /** The record buttons: what "Copy" copies, and whether "Open in PubMed" applies. */
+  function renderRecordActions() {
+    var recs = state.articles;
+    var src = shownSource();
+    var kind = copyKind(recs, src);
+    $('copy-ids').textContent = 'Copy ' + kind.label;
+    $('open-pubmed').hidden = !recs.some(function (a) { return a.pmid; });
+  }
+
+  function copyKind(recs, src) {
+    if (recs.length && recs.every(function (a) { return a.pmid; })) return { label: 'PMIDs', of: function (a) { return a.pmid; } };
+    if (src.idLabel === 'arXiv' || (recs.length && recs.every(function (a) { return a.arxiv; }))) return { label: 'arXiv IDs', of: function (a) { return a.arxiv || a.id; } };
+    if (src.idLabel === 'NCT number') return { label: 'NCT numbers', of: function (a) { return a.id; } };
+    if (recs.length && recs.every(function (a) { return a.doi; })) return { label: 'DOIs', of: function (a) { return a.doi; } };
+    if (src.kinds.indexOf('page') >= 0) return { label: 'links', of: function (a) { return a.url; } };
+    return { label: 'IDs', of: function (a) { return a.id; } };
   }
 
   // ---------------------------------------------------------------- settings
@@ -1256,15 +1565,17 @@
   }
 
   function syncControls() {
-    $('opt-retmax').value = String(settings.retmax);
-    if ($('opt-retmax').value !== String(settings.retmax)) {
+    var src = currentSource();
+    var limit = String(limitFor(src));
+    $('opt-retmax').value = limit;
+    if ($('opt-retmax').value !== limit) {
       var o = document.createElement('option');
-      o.value = String(settings.retmax);
-      o.textContent = fmt(settings.retmax);
+      o.value = limit;
+      o.textContent = fmt(+limit);
       $('opt-retmax').appendChild(o);
-      $('opt-retmax').value = String(settings.retmax);
+      $('opt-retmax').value = limit;
     }
-    $('opt-sort').value = settings.sort;
+    $('opt-sort').value = sortFor(src);
     Array.prototype.forEach.call($('opt-algorithm').querySelectorAll('button'), function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-algorithm') === settings.algorithm ? 'true' : 'false');
     });
@@ -1273,20 +1584,13 @@
     });
     $('opt-from').value = settings.fromYear;
     $('opt-to').value = settings.toYear;
-    $('f-abstracts').checked = settings.filters.abstracts;
-    $('f-english').checked = settings.filters.english;
-    $('f-humans').checked = settings.filters.humans;
-    $('f-free').checked = settings.filters.free;
-    $('f-reviews').checked = settings.filters.reviews;
-    $('f-trials').checked = settings.filters.trials;
+    renderSourceFilters();
+    renderAccess();
     $('opt-mesh').checked = settings.mesh;
     $('opt-biomedical').checked = settings.biomedical;
     $('opt-stopwords').value = settings.stopwords;
     $('opt-stoplabels').value = settings.stoplabels;
     $('opt-labelformat').value = settings.labelFormat;
-    $('opt-apikey').value = settings.apiKey;
-    $('opt-email').value = settings.email;
-    $('opt-baseurl').value = settings.baseUrl;
     $('opt-theme').value = settings.theme;
     buildParams();
   }
@@ -1343,7 +1647,7 @@
   var reclusterTimer = null;
   function scheduleRecluster() {
     clearTimeout(reclusterTimer);
-    reclusterTimer = setTimeout(function () { if (state.documents.length) recluster(); }, 350);
+    reclusterTimer = setTimeout(function () { if (state.documents.length || state.pendingNext) recluster(); }, 350);
   }
 
   function openSettings(opener) {
@@ -1385,13 +1689,41 @@
     if (state.query) runSearch(state.query);
   });
 
+  $('source-tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-source]');
+    if (b) selectSource(b.getAttribute('data-source'));
+  });
+
+  $('source-tabs').addEventListener('scroll', tabFades, { passive: true });
+  // The tabs change width when the web fonts arrive.
+  if (document.fonts) {
+    if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', revealTab);
+    if (document.fonts.ready) document.fonts.ready.then(revealTab, function () {});
+  }
+
+  $('source-tabs').addEventListener('keydown', function (e) {
+    var tabs = Array.prototype.slice.call(this.querySelectorAll('[role="tab"]'));
+    var i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    var next = null;
+    if (e.key === 'ArrowRight') next = tabs[(i + 1) % tabs.length];
+    else if (e.key === 'ArrowLeft') next = tabs[(i + tabs.length - 1) % tabs.length];
+    else if (e.key === 'Home') next = tabs[0];
+    else if (e.key === 'End') next = tabs[tabs.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    tabs.forEach(function (t) { t.tabIndex = t === next ? 0 : -1; });
+    next.focus();
+    next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+
   $('opt-algorithm').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-algorithm]');
     if (!b) return;
     settings.algorithm = b.getAttribute('data-algorithm');
     saveSettings();
     syncControls();
-    if (state.documents.length) {
+    if (state.documents.length || state.pendingNext) {
       state.focus = state.root;
       writeHash();
       recluster({ animate: true, fresh: true });
@@ -1436,8 +1768,8 @@
   $('records').addEventListener('click', function (e) {
     var t = e.target.closest('button[data-toggle]');
     if (t) {
-      var pmid = t.getAttribute('data-toggle');
-      if (state.expanded.has(pmid)) state.expanded.delete(pmid); else state.expanded.add(pmid);
+      var id = t.getAttribute('data-toggle');
+      if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
       var li = t.closest('.record');
       var d = +li.getAttribute('data-doc');
       li.outerHTML = renderRecord(d, highlightTerms());
@@ -1453,13 +1785,18 @@
     renderRecords(0, true);
   });
 
-  $('copy-pmids').addEventListener('click', function () {
-    var ids = selectedArticles().map(function (a) { return a.pmid; });
-    copyText(ids.join('\n')).then(function () { toast('Copied ' + plural(ids.length, 'PMID')); }, function () { toast('Could not copy to the clipboard'); });
+  $('copy-ids').addEventListener('click', function () {
+    var recs = selectedArticles();
+    var kind = copyKind(state.articles, shownSource());
+    var ids = recs.map(kind.of).filter(Boolean);
+    copyText(ids.join('\n')).then(function () {
+      toast('Copied ' + fmt(ids.length) + ' ' + (ids.length === 1 ? kind.label.replace(/s$/, '') : kind.label));
+    }, function () { toast('Could not copy to the clipboard'); });
   });
 
   $('open-pubmed').addEventListener('click', function () {
-    var ids = selectedArticles().map(function (a) { return a.pmid; }).slice(0, 200);
+    var ids = selectedArticles().map(function (a) { return a.pmid; }).filter(Boolean).slice(0, 200);
+    if (!ids.length) { toast('None of these records has a PMID'); return; }
     var term = ids.map(function (id) { return id + '[pmid]'; }).join(' OR ');
     window.open('https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(term), '_blank', 'noopener');
   });
@@ -1474,7 +1811,7 @@
 
   $('examples-list').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-example]');
-    if (b) runSearch(EXAMPLES[+b.getAttribute('data-example')][0]);
+    if (b) runSearch(examples()[+b.getAttribute('data-example')][0]);
   });
 
   $('export-ris').addEventListener('click', function () {
@@ -1497,10 +1834,11 @@
   });
 
   $('export-json').addEventListener('click', function () {
-    download('broccoli-' + slug(state.query) + '.json', D.toJson(state.result, state.articles, {
-      query: state.query,
-      pubmedQuery: state.search && state.search.queryTranslation,
-      matched: state.search && state.search.count,
+    download('broccoli-' + slug(shownQuery()) + '.json', D.toJson(state.result, state.articles, {
+      source: shownSource().id,
+      query: shownQuery(),
+      sourceQuery: state.search && state.search.queryTranslation,
+      matched: state.search && state.search.total,
       focus: focusPath(),
       topicTree: state.root ? serializeTree(state.root) : null,
     }), 'application/json');
@@ -1528,17 +1866,38 @@
   var researchHint = function () { if (state.query) toast('Applies to your next search'); };
   bindSetting('opt-from', function (el) { settings.fromYear = el.value.trim(); }, researchHint);
   bindSetting('opt-to', function (el) { settings.toYear = el.value.trim(); }, researchHint);
-  [['f-abstracts', 'abstracts'], ['f-english', 'english'], ['f-humans', 'humans'], ['f-free', 'free'], ['f-reviews', 'reviews'], ['f-trials', 'trials']].forEach(function (pair) {
-    bindSetting(pair[0], function (el) { settings.filters[pair[1]] = el.checked; }, researchHint);
+
+  $('source-filters').addEventListener('change', function (e) {
+    var el = e.target;
+    var src = currentSource();
+    if (el.hasAttribute('data-filter')) {
+      settings.filters[src.id] = Object.assign(filtersFor(src), settings.filters[src.id] || {});
+      settings.filters[src.id][el.getAttribute('data-filter')] = el.checked;
+    } else if (el.hasAttribute('data-choice')) {
+      var key = src.settingsFrom || src.id;
+      settings.sourceSettings[key] = settings.sourceSettings[key] || {};
+      settings.sourceSettings[key][el.getAttribute('data-choice')] = el.value;
+    } else return;
+    saveSettings();
+    researchHint();
   });
-  bindSetting('opt-mesh', function (el) { settings.mesh = el.checked; }, function () { if (state.articles.length) { rebuildDocuments(); scheduleRecluster(); } });
+
+  $('access').addEventListener('change', function (e) {
+    var el = e.target;
+    var id = el.getAttribute('data-access');
+    if (!id) return;
+    settings.sourceSettings[id] = settings.sourceSettings[id] || {};
+    settings.sourceSettings[id][el.getAttribute('data-key')] = el.value.trim();
+    saveSettings();
+  });
+  bindSetting('opt-mesh', function (el) { settings.mesh = el.checked; }, function () {
+    if (state.pendingNext) state.pendingNext.documents = makeDocuments(state.pendingNext.articles);
+    if (state.articles.length || state.pendingNext) { rebuildDocuments(); scheduleRecluster(); }
+  });
   bindSetting('opt-biomedical', function (el) { settings.biomedical = el.checked; }, scheduleRecluster);
   bindSetting('opt-stopwords', function (el) { settings.stopwords = el.value; }, scheduleRecluster);
   bindSetting('opt-stoplabels', function (el) { settings.stoplabels = el.value; }, scheduleRecluster);
   bindSetting('opt-labelformat', function (el) { settings.labelFormat = el.value; }, scheduleRecluster);
-  bindSetting('opt-apikey', function (el) { settings.apiKey = el.value.trim(); });
-  bindSetting('opt-email', function (el) { settings.email = el.value.trim(); });
-  bindSetting('opt-baseurl', function (el) { settings.baseUrl = el.value.trim(); });
   bindSetting('opt-theme', function (el) { settings.theme = el.value; }, function () { applyTheme(); themeChanged(); });
 
   if (window.matchMedia) {
@@ -1578,6 +1937,7 @@
       if (size === lastSize && !mapExpanded) return;
       lastSize = size;
       placeThumb();
+      revealTab();
       if (!$('results').hidden && state.root) {
         views.refresh();
         if (settings.view === 'florets') renderFlorets(false);
@@ -1621,6 +1981,8 @@
 
   applyTheme();
   var initial = readHash();
+  renderSourceTabs();
+  applySource();
   syncControls();
   $('version-line').textContent = 'Broccoli ' + D.VERSION + ' · MIT License, Decentralized Science Labs LLC.';
   renderExamplesList();
@@ -1631,5 +1993,6 @@
   window.BroccoliApp = {
     state: state, settings: settings, runSearch: runSearch, recluster: recluster, focusOn: focusOn,
     expand: expand, views: views, clusterer: clusterer, get helper() { return helper; },
+    selectSource: selectSource, sources: SOURCES,
   };
 })();
