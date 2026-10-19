@@ -6,8 +6,7 @@ three ways, from the least work to the most:
 
 1. [Links that open a search](#links-that-open-a-search) on the search page.
 2. [The search page in a frame](#the-search-page-in-a-frame) on a page of
-   your own, the way [genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html)
-   shows it.
+   your own.
 3. [The library on your page](#the-library-on-your-page), with your own
    interface, and if you like [the maps](#the-maps-on-your-page) too.
 
@@ -44,6 +43,12 @@ To turn your own search box into one that opens Broccoli:
 `URLSearchParams` encodes the query the way the page reads it. A link with a
 query carries the whole search: what it leaves out is the default, not the
 reader's own settings, so everyone who opens it gets the same records.
+
+Links are the simplest way in, and the roomiest: the search page gets a
+whole tab. [genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html)
+works this way: its example searches and "Try" buttons open its copy of the
+search page in a new tab (`target="_blank" rel="noopener"`), adding
+`?theme=light` or `?theme=dark` when the reader picked a theme on the site.
 
 ## The search page in a frame
 
@@ -90,8 +95,8 @@ reader's own settings, so everyone who opens it gets the same records.
   links do.
 
 If your site adds a cookie notice or analytics, keep them on the framing
-page. genesisl1.com does this: the framing page asks and counts, and the
-framed search page shows no notice of its own.
+page: let it ask and count, and leave the framed search page without a
+notice of its own.
 
 ## The library on your page
 
@@ -99,11 +104,11 @@ The library is one script with no dependencies. Load it from your own copy
 of `dist/`, or from jsDelivr, pinned to a release tag:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.0/dist/broccoli.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.1/dist/broccoli.js"></script>
 ```
 
 ```js
-import * as Broccoli from 'https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.0/dist/broccoli.mjs';
+import * as Broccoli from 'https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.1/dist/broccoli.mjs';
 ```
 
 A file at a tag never changes, so you can add Subresource Integrity: compute
@@ -115,7 +120,7 @@ Search a source, cluster the records, and show the topics your way:
 
 ```html
 <ul id="topics"></ul>
-<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.0/dist/broccoli.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.1/dist/broccoli.js"></script>
 <script>
   (async function () {
     var res = await Broccoli.searchSource('pubmed', 'senolytics healthy aging', { limit: 300 });
@@ -191,9 +196,8 @@ split: the map shows them one by one). The map's methods:
 
 The map reads the theme from `data-theme` on the page's root element, or
 from the system when there is none; call `refresh()` when it changes. The
-labels use Atkinson Hyperlegible when the page has it, or the system's sans
-serif; set `window.BroccoliFont` before loading `views.js` to choose
-another. The canvas, its tooltip (`.views-tip`) and a hidden live region
+labels use Inter when the page has it, or the system's sans serif; set
+`window.BroccoliFont` before loading `views.js` to choose another. The canvas, its tooltip (`.views-tip`) and a hidden live region
 for screen readers (`.visually-hidden`) need a few lines of CSS, which
 `examples/map.html` has.
 

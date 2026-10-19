@@ -10,7 +10,7 @@ records in from any search API: PubMed, Europe PMC, ClinicalTrials.gov,
 preprints, arXiv, OpenAlex, Crossref, DOAJ, DataCite, INSPIRE-HEP and
 Wikipedia are built in. It also contains exports for reference managers and
 a search page with a tab for each source. No source needs an API key or an
-account. This guide describes version 1.5.0.
+account. This guide describes version 1.5.1.
 
 It explains how the sources fetch and shape records, how Broccoli reads
 text, how each algorithm finds and names topics, how the maps are laid out
@@ -771,9 +771,10 @@ system, zooms, fades and blooms are off.
 `app/colors.js`, `app/views.js`, `app/florets.js` and `app/app.js`. Under
 CommonJS, `Broccoli` is `module.exports` instead of a global. The canvas maps
 write their labels in `window.BroccoliFont` when a page sets it before
-loading `app/views.js`, otherwise in Atkinson Hyperlegible, which the page
-bundles with Newsreader (`app/fonts/`). Opened from disk, everything works,
-with system fonts where a browser blocks web fonts on `file://` pages.
+loading `app/views.js`, otherwise in Inter, which the page bundles with IBM
+Plex Sans and DM Mono (`app/fonts/`), GenesisL1's typefaces. Opened from
+disk, everything works, with system fonts where a browser blocks web fonts
+on `file://` pages.
 
 ### Callbacks, events and workers
 

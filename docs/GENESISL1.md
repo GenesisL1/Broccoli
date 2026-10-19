@@ -46,8 +46,10 @@ physics, Wikipedia, or a search engine of your own.
 ## Where it runs
 
 - **[genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html)**
-  presents Broccoli and runs the search page from this repository, with a
-  tab for every source, in the site's light and dark themes.
+  presents Broccoli in the site's own look, and the search page from this
+  repository runs at [genesisl1.com/broccoli/search/](https://genesisl1.com/broccoli/search/),
+  with a tab for every source; every "Try" link on the page opens it in a
+  new tab.
 - **[GL1X PubMed search](https://gl1x.com/bio/pubmed)**: the explorer's
   PubMed search runs Broccoli in the browser to cluster up to 2,000 records
   into a zoomable map, with its own light and dark themes. PubMed is reached
@@ -92,6 +94,7 @@ to names or marks. To cite Broccoli, use [CITATION.cff](../CITATION.cff)
   [ecosystem](https://genesisl1.com/ecosystem.html) ·
   [GitHub](https://github.com/GenesisL1)
 - Broccoli: [genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html) ·
+  [search page](https://genesisl1.com/broccoli/search/) ·
   [source](https://github.com/GenesisL1/Broccoli)
 - GL1X: [gl1x.com](https://gl1x.com) ·
   [PubMed search](https://gl1x.com/bio/pubmed)

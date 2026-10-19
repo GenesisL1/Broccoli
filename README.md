@@ -20,13 +20,15 @@ APIs directly. The library is one file with no dependencies.
 
 Broccoli is made by Decentralized Science Labs as a native part of the
 [GenesisL1](https://genesisl1.com) ecosystem, the public Layer 1 for
-verifiable data, models, applications and open infrastructure. It runs at
-[genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html), and
-[GL1X](https://gl1x.com), the GenesisL1 explorer, uses it to map the
+verifiable data, models, applications and open infrastructure. Its search
+page runs at [genesisl1.com/broccoli/search/](https://genesisl1.com/broccoli/search/)
+(about Broccoli: [genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html)),
+and [GL1X](https://gl1x.com), the GenesisL1 explorer, uses it to map the
 literature of the molecular structures on the chain. MIT License, © 2026
 Decentralized Science Labs LLC.
 
-**[Try Broccoli](https://genesisl1.com/broccoli.html)** ·
+**[Try Broccoli](https://genesisl1.com/broccoli/search/)** ·
+[About](https://genesisl1.com/broccoli.html) ·
 [Documentation](docs/README.md) · [Sources](docs/SOURCES.md) ·
 [Changelog](CHANGELOG.md) ·
 [GenesisL1 ecosystem](https://genesisl1.com/ecosystem.html)
@@ -92,7 +94,7 @@ CITATION.cff             how to cite Broccoli
    ClinicalTrials.gov.
 
 Or use the copy that runs at
-[genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html).
+[genesisl1.com/broccoli/search/](https://genesisl1.com/broccoli/search/).
 
 To serve the folder locally, run `python3 tools/serve.py` and open
 http://localhost:8000/. `php -S localhost:8000` and other static servers work
@@ -252,8 +254,9 @@ house by Decentralized Science Labs, the publisher of genesisl1.com, for the
 GenesisL1 ecosystem.
 
 - **[genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html)**
-  presents Broccoli and runs the search page from this repository, with a
-  tab for every source.
+  presents Broccoli, and the search page from this repository runs at
+  [genesisl1.com/broccoli/search/](https://genesisl1.com/broccoli/search/),
+  with a tab for every source.
 - **[GL1X](https://gl1x.com)**, the GenesisL1 explorer, uses Broccoli for its
   [PubMed search](https://gl1x.com/bio/pubmed): every molecular structure on
   the chain links to its literature, by its PDB ID and by the important words
@@ -286,7 +289,7 @@ GenesisL1 ecosystem.
 From a CDN, straight from this repository's tags:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.0/dist/broccoli.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.5.1/dist/broccoli.js"></script>
 ```
 
 jsDelivr also serves a minified copy if you ask for `broccoli.min.js`.
@@ -454,7 +457,7 @@ as is:
   stats: { … }, timings: { preprocessing: { … }, factorization: 41, total: 380 },
   parameters: { … },               // the parameters that were used
   warnings: [ … ],                 // unknown parameters, clamped values
-  version: '1.5.0',
+  version: '1.5.1',
 }
 ```
 

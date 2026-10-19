@@ -4,7 +4,7 @@ title: "Broccoli: GenesisL1's open-source search results clustering engine"
 type: software
 authors:
   - name: "Decentralized Science Labs LLC"
-version: "1.5.0"
+version: "1.5.1"
 date-released: "2026-10-19"
 license: MIT
 repository-code: "https://github.com/GenesisL1/Broccoli"

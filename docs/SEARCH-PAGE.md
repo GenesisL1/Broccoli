@@ -4,8 +4,8 @@
 The search page (`index.html`) is Broccoli, GenesisL1's search results
 clustering engine, with a face: pick a source, search it the way you would
 there, and read the results as a map of their topics. It runs at
-[genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html), and in
-any folder you open or publish. Everything happens in your browser: the page
+[genesisl1.com/broccoli/search/](https://genesisl1.com/broccoli/search/),
+and in any folder you open or publish. Everything happens in your browser: the page
 asks each source's API directly and clusters the records on your device. It
 asks for no account and no API key.
 

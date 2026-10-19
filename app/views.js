@@ -27,7 +27,7 @@
   var C = global.BroccoliColors;
   var TAU = Math.PI * 2;
   // The page may name the font of the map's labels (window.BroccoliFont).
-  var FONT = global.BroccoliFont || '"Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif';
+  var FONT = global.BroccoliFont || '"Inter", "Helvetica Neue", Arial, system-ui, sans-serif';
   var FADE_MS = 460;
   var ZOOM_MS = 760;
   // Ring boundaries (fractions of the radius) for maps one, two or three rings deep.

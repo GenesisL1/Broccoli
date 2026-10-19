@@ -1,5 +1,24 @@
 # Changes
 
+## 1.5.1
+
+The search page now wears GenesisL1's look, the colours and type of
+genesisl1.com.
+
+- **GenesisL1's colours.** White and near-black with GenesisL1's blue, in
+  place of the warm paper and green: the page, the panels, the map's stage,
+  tooltips and controls, in the light and dark themes. Corners are square,
+  as on genesisl1.com.
+- **GenesisL1's type.** Inter for text and the maps' labels, IBM Plex Sans
+  for headings and topic names, and DM Mono for small labels, served with the
+  page from `app/fonts/`. They replace Atkinson Hyperlegible and Newsreader;
+  `NOTICE.md` credits them.
+- **New pictures.** The README's pictures show the new look.
+- **genesisl1.com/broccoli/search/.** genesisl1.com's copy of the search
+  page moved there, and the Broccoli page opens it in a new tab; the
+  documentation links to it.
+- The examples and the test page use the same colours.
+
 ## 1.5.0
 
 Broccoli now says what it is, a GenesisL1 in-house open-source search

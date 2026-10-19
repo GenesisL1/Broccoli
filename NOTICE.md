@@ -84,11 +84,14 @@ for Broccoli.
 
 ## Fonts
 
-The search page bundles subsets of two typefaces, both under the SIL Open
+The search page bundles GenesisL1's three typefaces, all under the SIL Open
 Font License 1.1 (license texts in `app/fonts/`):
 
-- Newsreader, by Production Type.
-- Atkinson Hyperlegible, by the Braille Institute of America.
+- Inter, by Rasmus Andersson and the Inter Project Authors: a subset of the
+  variable font (Latin, Greek and Cyrillic, weights 400 to 700).
+- IBM Plex Sans, by IBM Corp. ("Plex" is a Reserved Font Name): IBM's own
+  web fonts, unmodified.
+- DM Mono, by the DM Mono Project Authors: a Latin subset.
 
 ## Data sources
 

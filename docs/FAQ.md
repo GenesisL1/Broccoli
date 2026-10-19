@@ -13,8 +13,10 @@ six levels deep.
 
 ### How is it related to GenesisL1?
 
-Decentralized Science Labs develops Broccoli for the GenesisL1 ecosystem. It
-runs at [genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html),
+Decentralized Science Labs develops Broccoli for the GenesisL1 ecosystem.
+genesisl1.com presents it at
+[genesisl1.com/broccoli.html](https://genesisl1.com/broccoli.html) and runs
+its search page at [genesisl1.com/broccoli/search/](https://genesisl1.com/broccoli/search/),
 and GL1X, the GenesisL1 explorer, uses it to map the literature of the
 molecular structures on the chain. See [GENESISL1.md](GENESISL1.md).
 

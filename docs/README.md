@@ -4,7 +4,7 @@
 Broccoli is a GenesisL1 in-house open-source search results clustering
 engine: it groups the records a search returns into labelled topics in the
 browser, and draws them as zoomable maps. These pages document version
-1.5.0. The [README](../README.md) introduces Broccoli and is the reference
+1.5.1. The [README](../README.md) introduces Broccoli and is the reference
 for its API.
 
 ## By what you want to do

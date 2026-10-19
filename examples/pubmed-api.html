@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Broccoli: PubMed in a few lines</title>
 <style>
-  :root { --bg: #f5f7f2; --fg: #1e2b22; --muted: #5d6b61; --line: #d5ddd2; --panel: #ffffff; --accent: #56795a; color-scheme: light; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #141a16; --fg: #e3e9e2; --muted: #9aa79d; --line: #2c3730; --panel: #1b231e; --accent: #8fb592; color-scheme: dark; } }
+  :root { --bg: #f7f9fb; --fg: #11161d; --muted: #626b77; --line: #dde2e8; --panel: #ffffff; --accent: #245cae; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0b0f15; --fg: #e1e8f3; --muted: #b2bcca; --line: #222a35; --panel: #11161d; --accent: #9cc3fd; color-scheme: dark; } }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
   main { max-width: 60rem; margin: 0 auto; padding: 1.5rem max(16px, env(safe-area-inset-left, 0px)) 3rem max(16px, env(safe-area-inset-right, 0px)); }
   h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
   p { color: var(--muted); margin: 0 0 1rem; max-width: 42rem; }
   form { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
-  input, button { font: inherit; padding: .45rem .7rem; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+  input, button { font: inherit; padding: .45rem .7rem; border-radius: 0; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
   input { flex: 1 1 16rem; min-width: 0; }
   button { background: var(--accent); color: var(--bg); border-color: var(--accent); cursor: pointer; }
   #status { color: var(--muted); font-size: .875rem; min-height: 1.5em; }
