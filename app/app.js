@@ -102,6 +102,19 @@
   }
 
   var settings = loadSettings();
+
+  // A page that embeds the search page in a frame can set its theme, without
+  // touching the saved settings: with ?theme=light|dark|system in the frame's
+  // address, or a message { type: 'broccoli:theme', theme: 'dark' }.
+  var THEMES = { light: 1, dark: 1, system: 1 };
+  var embedTheme = (function () {
+    try {
+      var t = new URLSearchParams(window.location.search).get('theme');
+      return THEMES[t] ? t : null;
+    } catch (e) { return null; }
+  })();
+  function themeSetting() { return embedTheme || settings.theme; }
+
   var state = {
     query: '',
     source: null,     // the source of the records on show
@@ -1548,7 +1561,8 @@
 
   function applyTheme() {
     var root = document.documentElement;
-    if (settings.theme === 'light' || settings.theme === 'dark') root.setAttribute('data-theme', settings.theme);
+    var theme = themeSetting();
+    if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme);
     else root.removeAttribute('data-theme');
     dark = Colors.isDark();
   }
@@ -1898,13 +1912,23 @@
   bindSetting('opt-stopwords', function (el) { settings.stopwords = el.value; }, scheduleRecluster);
   bindSetting('opt-stoplabels', function (el) { settings.stoplabels = el.value; }, scheduleRecluster);
   bindSetting('opt-labelformat', function (el) { settings.labelFormat = el.value; }, scheduleRecluster);
-  bindSetting('opt-theme', function (el) { settings.theme = el.value; }, function () { applyTheme(); themeChanged(); });
+  // A theme picked in the settings wins over the embedding page's until it sends another.
+  bindSetting('opt-theme', function (el) { settings.theme = el.value; embedTheme = null; }, function () { applyTheme(); themeChanged(); });
 
   if (window.matchMedia) {
     var mq = window.matchMedia('(prefers-color-scheme: dark)');
-    var onScheme = function () { if (settings.theme === 'system') themeChanged(); };
+    var onScheme = function () { if (themeSetting() === 'system') themeChanged(); };
     if (mq.addEventListener) mq.addEventListener('change', onScheme); else if (mq.addListener) mq.addListener(onScheme);
   }
+
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (e.source !== window.parent || window.parent === window || !d || d.type !== 'broccoli:theme' || !THEMES[d.theme]) return;
+    if (d.theme === embedTheme) return;
+    embedTheme = d.theme;
+    applyTheme();
+    themeChanged();
+  });
 
   $('params').addEventListener('change', function (e) {
     var el = e.target;

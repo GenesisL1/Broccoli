@@ -1,4 +1,4 @@
-# Broccoli
+# 🥦 Broccoli
 
 **Topic maps for search results.** Broccoli takes the records a search
 returns, whatever searched for them, groups them into labelled topics in the
@@ -20,7 +20,10 @@ APIs directly. The library is one file with no dependencies.
 
 MIT License, © 2026 Decentralized Science Labs LLC.
 
-![The organic treemap of a PubMed search for longevity and ageing: 200 records in 28 topics](docs/images/broccoli-treemap.webp)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/broccoli-treemap-dark.webp">
+  <img src="docs/images/broccoli-treemap.webp" width="1600" height="957" alt="The organic treemap of a PubMed search for longevity and ageing: 200 records in 28 topics">
+</picture>
 
 A head of broccoli is a cluster of florets, and every floret is a cluster of
 smaller ones; in Romanesco the same spiral repeats at every scale. Broccoli
@@ -168,6 +171,11 @@ call; see [Plug in your own search](#plug-in-your-own-search).
 
   Settings are kept in this browser only. A key is sent only to the service
   it belongs to.
+- **Embedding**: a page that shows the search page in a frame can set its
+  theme without touching the reader's settings, with `?theme=light`, `dark`
+  or `system` in the frame's address, or by sending it a message:
+  `frame.contentWindow.postMessage({ type: 'broccoli:theme', theme: 'dark' }, '*')`.
+  A theme the reader picks in the settings wins until the page sends another.
 - **Sharing**: the address bar holds the source, the query, its options and
   filters, the map style and the topic you zoomed into
   (`#s=…&q=…&a=…&v=…&p=…`), so a view can be bookmarked or sent to someone,
@@ -223,7 +231,7 @@ molecular structure links to its literature.
 From a CDN, straight from this repository's tags:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.4.0/dist/broccoli.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/GenesisL1/Broccoli@v1.4.1/dist/broccoli.js"></script>
 ```
 
 jsDelivr also serves a minified copy if you ask for `broccoli.min.js`.
@@ -386,7 +394,7 @@ as is:
   stats: { … }, timings: { preprocessing: { … }, factorization: 41, total: 380 },
   parameters: { … },               // the parameters that were used
   warnings: [ … ],                 // unknown parameters, clamped values
-  version: '1.4.0',
+  version: '1.4.1',
 }
 ```
 

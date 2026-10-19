@@ -9,7 +9,7 @@ records in from any search API: PubMed, Europe PMC, ClinicalTrials.gov,
 preprints, arXiv, OpenAlex, Crossref, DOAJ, DataCite, INSPIRE-HEP and
 Wikipedia are built in. It also contains exports for reference managers and
 a search page with a tab for each source. This guide describes version
-1.4.0.
+1.4.1.
 
 It explains how the sources fetch and shape records, how Broccoli reads
 text, how each algorithm finds and names topics, how the maps are laid out
@@ -741,7 +741,10 @@ light theme and 10.6 on the dark, both for deuteranopia, the worst case
 only tells neighbours apart. An explicit
 `data-theme` on the page wins over the system's colour scheme; the search
 page sets it from its *Theme* setting, and the maps redraw when it or the
-system's scheme changes.
+system's scheme changes. In a frame, the embedding page can set the theme
+for the visit without changing the saved setting: `?theme=light|dark|system`
+in the frame's address, or a `{ type: 'broccoli:theme', theme }` message from
+the parent window. Choosing a theme in the settings takes over again.
 
 ## Interaction
 

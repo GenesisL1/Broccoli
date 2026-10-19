@@ -1,5 +1,18 @@
 # Changes
 
+## 1.4.1
+
+- **The 🥦 mark.** Broccoli's mark is now the Unicode broccoli, drawn by the
+  reader's own emoji font: in the search page's header, as its icon, and in
+  the README.
+- **Theme from an embedding page.** A page that shows the search page in a
+  frame can set its theme for the visit, with `?theme=light`, `dark` or
+  `system` in the frame's address, or a `{ type: 'broccoli:theme', theme }`
+  message. The reader's saved setting is not touched, and a theme picked in
+  the settings takes over again. The page also declares both colour schemes
+  and a theme colour for each.
+- The README's main picture follows GitHub's light or dark mode.
+
 ## 1.4.0
 
 Broccoli becomes a general topic-map engine for search results, with

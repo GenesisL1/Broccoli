@@ -177,7 +177,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
   color: var(--ink);
 }
 
-.brand svg { flex: none; }
+/* the mark is the Unicode broccoli, drawn by the system's emoji font */
+.brand-mark {
+  flex: none;
+  width: 40px;
+  font: 400 35px/1 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'Twemoji Mozilla', sans-serif;
+  text-align: center;
+}
 
 .brand-name {
   font: italic 600 28px/1 var(--serif);
